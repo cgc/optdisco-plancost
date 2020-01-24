@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<!-- saved from url=(0065)https://www.redblobgames.com/pathfinding/a-star/introduction.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Introduction to the A* Algorithm</title><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="always"><link rel="preload" as="image" href="https://www.redblobgames.com/img/transparent-blob.png"><link rel="canonical" href="https://www.redblobgames.com/pathfinding/a-star/introduction.html"><link rel="alternate" type="application/atom+xml" title="Blobs in Games - Atom" href="https://simblob.blogspot.com/feeds/posts/default"><meta name="twitter:creator" content="@redblobgames"><meta name="theme-color" content="hsl(0,50%,45%)"><meta name="verify-v1" content="82b+h1+tgwLrcTqTiJrqquMvoFVBwMwY11dx63m01zk="><meta name="twitter:card" content="summary"><meta name="twitter:site" content="@redblobgames"><meta property="og:title" content="Red Blob Games: Introduction to A*"><meta property="og:description" content="Interactive tutorial for A*, Dijkstra&#39;s Algorithm, and other pathfinding algorithms"><meta property="og:image" content="https://www.redblobgames.com/thumbnail/astar-intro.jpg">
+
+
+<style>body{--hue: 0;--serif: Cambria,Georgia,serif;--sans-serif: system-ui,-apple-system,"Segoe UI","Helvetica Neue",sans-serif;--monospace: "Roboto Mono","Consolas",monospace,"Segoe UI Symbol","Symbol";--font-size: 16px;--font-size: calc(10px + 1vw);--line-height: 24px;--line-height: calc(1.5 * var(--font-size));--body-width: 660px;--body-width: calc(100vw - 36px);font-family:sans-serif;font-family:var(--sans-serif);font-size:16px;font-size:var(--font-size);line-height:1.5em;min-height:95%}@media (min-width: 550px){body{--body-width: calc(330px + 33vw);--font-size: calc(var(--body-width) / 33)}}@media (min-width: 1000px){body{--body-width: 660px}}main{font-family:var(--serif)}h1,h2,h3,h4,h5,h6,figcaption,.sans-serif{font-family:var(--sans-serif)}tt,code,kbd,samp,pre{font-family:monospace;font-family:var(--monospace);font-size:0.8em;font-size-adjust:none}#table-of-contents{background-color:#fff;margin-left:2em;padding-left:2em;width:20em;float:right}#table-of-contents:after{clear:both}nav,#table-of-contents{font-family:var(--sans-serif);font-size:calc(var(--font-size) / 1.25)}@media screen{header,section>h2{text-shadow:0px 2px 5px rgba(0,0,0,0.8);text-rendering:optimizeLegibility}}h1{font-size:2.0em;margin:0;line-height:36px;line-height:calc(1.5 * var(--line-height))}h1 .subheading{font-size:0.5em;letter-spacing:normal;line-height:24px;line-height:var(--line-height)}sup,sub{position:relative;vertical-align:baseline;font-size:0.75em;line-height:0;padding-left:2px}sup{top:-0.5em}sub{bottom:-0.25em}*{box-sizing:border-box}html,body{margin:0;padding:0}html{background-color:#e4e4e0;color:#000}body{background-color:#fff;color:#333}header{display:block;text-align:center}header>h1{padding-top:24px;padding-top:var(--line-height)}@media screen{.colored-background,header,footer,.divider,section>h2{color:#fff;background-color:#ac3939;background-color:hsl(var(--hue), 50%, 45%);background-image:url("/img/transparent-blob.png"), url("/img/transparent-blob.png");background-position:0 0, 16px 16px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}.colored-background a,header a,footer a,.divider a,section>h2 a{color:#f0dbdb;color:hsl(var(--hue), 40%, 90%)}}footer a,.divider a{text-decoration:underline}main{margin-left:0;margin-right:0;padding-left:0;padding-right:0}section{margin-top:24px;margin-bottom:24px;margin-top:var(--line-height);margin-bottom:var(--line-height)}section>*,.comments{width:660px;width:var(--body-width);max-width:100%}@media screen{.comments,.below-divider{background-color:#e4e4e0}}.comments{padding-bottom:20px;text-shadow:1px 1px 3px #fff;font-size:0.8em}section>h2{--h2-margin: 3em;--h2-padding: 0.5em;margin:24px auto;margin:var(--line-height) auto;padding:calc(var(--line-height) / 2 - 1px) 0;font-size:1.25em;width:740px;width:calc(2 * var(--h2-margin) + var(--body-width));max-width:100%}section>h2>span{display:inline-block;margin-left:var(--h2-margin)}section>h2 a.anchor{float:right;width:var(--h2-margin);padding-right:var(--h2-padding);text-align:center;color:#ac3939;color:hsl(var(--hue), 50%, 45%)}section>h2:hover a.anchor{color:#d6c2c2;color:hsl(var(--hue), 20%, 80%)}h3{--h2-margin: 3em;margin:24px auto;margin:var(--line-height) auto;font-size:1.125em}h3 a.anchor{float:right;width:var(--h2-margin);padding-right:0.5em;text-align:center;color:#d6c2c2;color:hsl(var(--hue), 20%, 80%)}@media (min-width: 550px){h3 a.anchor{margin-right:calc(0em - var(--h2-margin))}}h3:hover a.anchor{color:#933;color:hsl(var(--hue), 50%, 40%)}header nav{display:block}header nav ul{text-align:center;display:-ms-flexbox;display:flex;-ms-flex-flow:row wrap;flex-flow:row wrap;-ms-flex-pack:center;justify-content:center;line-height:1.0;margin:0}header nav ul li{display:inline-block;width:10%;padding:2px 5px;text-align:center;-ms-flex:0 0 4em;flex:0 0 4em;-ms-flex-item-align:center;-ms-grid-row-align:center;align-self:center;white-space:nowrap}header nav ul li a{display:block;width:100%;font-weight:bold;text-decoration:none}header nav ul li:hover{background-color:rgba(0,0,0,0.5);font-weight:bold}header,.divider,section>h2{border-bottom:1px solid #000}.divider,section>h2{border-top:1px solid #000}.divider{min-height:48px;min-height:calc(2 * var(--line-height));text-align:center}.below-divider{padding-top:24px;padding-top:var(--line-height)}.below-divider>p:first-child{font-size:1.25em;text-align:center;margin-top:0}footer{--footer-padding-y: calc(var(--line-height) / 2);--footer-padding-x: var(--font-size);padding:12px 16px;padding:var(--footer-padding-y) var(--footer-padding-x);border-top:1px solid #000}footer>div>address{display:block}footer>div>*{text-align:center}@media (min-width: 50em){footer>div{margin:0 auto;display:-ms-flexbox;display:flex;-ms-flex-flow:row wrap;flex-flow:row wrap;-ms-flex-pack:center;justify-content:center;max-width:calc(2 * var(--body-width));width:calc(100vw - 2 * var(--footer-padding-x))}footer>div>address{-ms-flex:0 1 20em;flex:0 1 20em;-ms-flex-item-align:center;-ms-grid-row-align:center;align-self:center;text-align:left}footer>div>div{-ms-flex:1 1 20em;flex:1 1 20em;-ms-flex-item-align:center;-ms-grid-row-align:center;align-self:center;text-align:right}footer>div>div>p,footer>div>div>div{margin-top:0}}h2:target{animation:target-attention 0.4s 1;font-size:2.0em}@keyframes target-attention{0%{transform:scale(1.1)}100%{transform:scale(1.1)}}div:target{border:1px dashed #888}kbd kbd{padding:1px 7px;margin:0px 1px 3px 1px;font-size:0.75em;white-space:nowrap;background-color:#ddd;color:#242;border:1px solid rgba(0,0,0,0.2);border-radius:3px;box-shadow:inset 0 0 1px 1px #fff, 0 2px 0 rgba(0,0,0,0.3)}samp,kbd{background-color:#f3f3f2}code,samp{color:#442}kbd{margin:0 7px;color:#252}section li::marker{font-family:var(--sans-serif);color:#933;color:hsl(var(--hue), 50%, 40%)}img{max-width:100%;height:auto;-ms-interpolation-mode:bicubic}section figcaption{font-size:0.75em;line-height:1.1;text-align:center}a{color:#ac3939;color:hsl(var(--hue), 50%, 45%);text-decoration:none}a:hover{text-decoration:underline}.draft{font-family:var(--serif);font-size:calc(4 * var(--font-size));color:#eee;opacity:0.5;text-align:center;transform:rotate(-5deg);line-height:1.0;position:absolute;top:0;height:0;left:25%;width:50%;letter-spacing:-10px;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;pointer-events:none}h1,h2,h3,h4,h5,h6{-webkit-font-feature-settings:"liga", "clig", "calt", "kern", "palt";font-feature-settings:"liga", "clig", "calt", "kern", "palt";-webkit-font-variant-ligatures:common-ligatures contextual;font-variant-ligatures:common-ligatures contextual}h1:first-char,h2:first-char,h3:first-char{font-variant-numeric:normal}section p,section li{-webkit-font-feature-settings:"liga", "clig", "calt", "onum", "kern", "palt";font-feature-settings:"liga", "clig", "calt", "onum", "kern", "palt";-webkit-font-variant-ligatures:normal;font-variant-ligatures:normal;font-variant-numeric:oldstyle-nums;hanging-punctuation:first last}section p{text-align:justify;-webkit-hyphens:auto;-ms-hyphens:auto;hyphens:auto}nav,figure,td,th,abbr,acronym,code,kbd,samp,tt,var,pre{-webkit-font-feature-settings:"liga" off, "clig" off, "kern" off, "tnum" on, "lnum" on;font-feature-settings:"liga" off, "clig" off, "kern" off, "tnum" on, "lnum" on;-webkit-font-variant-ligatures:none;font-variant-ligatures:none;font-variant-numeric:lining-nums tabular-nums slashed-zero;-webkit-hyphens:none;-ms-hyphens:none;hyphens:none}.w-auto,section>.w-auto{width:auto}.w-full,section>.w-full{width:100%}.select-none{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.text-sm{font-size:0.875em}.font-sans{font-family:var(--sans-serif)}.font-serif{font-family:var(--serif)}.font-mono{font-family:var(--monospace)}p,figure,ul,ol{margin:24px 0;margin-top:var(--line-height);margin-bottom:var(--line-height)}header>*,section>*,footer>*,main>address,.comments{margin-left:auto;margin-right:auto}figure{text-align:center}li>ul,li>ol{margin-top:0;margin-bottom:0}figure img,figure svg,figure canvas{max-width:100%}dt{font-weight:bold}pre{width:660px;width:var(--body-width);max-width:100%;line-height:1.4;overflow:auto;border-top:1px solid #ccc;border-bottom:1px solid #ccc;border-left-width:0;border-right-width:0}pre::-webkit-scrollbar{height:1em}pre::-webkit-scrollbar-thumb:horizontal{border-radius:0.5em;background:rgba(0,0,0,0.4)}pre.simple,.comments pre{overflow:auto;width:calc(var(--body-width) * 1.2);border:none;background:transparent;background-color:transparent;box-shadow:none}pre.snippet,pre.src{border-top-style:dashed;border-bottom-style:dashed}section>pre:only-child{padding-bottom:16px;border-bottom:1px solid rgba(0,0,0,0.5)}blockquote{font-style:italic}table.standard{border:1px solid rgba(0,0,0,0.5);border-collapse:collapse}table.standard th{background-color:#f8f8f8;background:linear-gradient(to top, #f8f8f8, #f8f8f8, #f0f0f0)}table.standard td{background-color:#fff}table.standard th,table.standard td{border:1px solid rgba(0,0,0,0.5)}aside,p.note,div.note>p{width:calc(--body-width - 2em);padding:1em;background:#eee;border:1px solid #ddd;box-shadow:0 8px 6px -6px rgba(0,0,0,0.4)}svg{overflow:hidden}tt,code{padding:0 2px}main>address,section>address,section>time{display:block;width:var(--body-width);max-width:100%;font-family:var(--sans-serif);text-align:right}@media (max-width: 600px){header nav{display:none}}form{margin:0}input[type="text"]{max-width:100%;border:1px solid rgba(0,0,0,0.7);background-color:#f8f8f4;color:#000;text-align:center;font-weight:bold}input[type="text"]:focus{background-color:#fffff4}input::-webkit-input-placeholder{color:#aaa}input::-moz-placeholder{color:#aaa}input[type="search"][name="q"]{box-shadow:inset 0 2px 5px 0 rgba(0,0,0,0.5);border-radius:10px;padding:5px 10px;border-width:0}.TODO{color:#bf4040;background:#e8e3e3;border:1px solid #bf4040;margin-left:0.5ex}.DONE{color:#4040bf;background:#e3e3e8;border:1px solid #4040bf}.src .comment-delimiter,.src .nxml-comment-delimiter{color:#4488ff}.src .comment,.src .nxml-comment-content{color:#006699}.src .keyword{color:#406abf;font-weight:bold}.src .builtin{color:#508b20}.src .warning{color:#cc0000}.src .function-name{color:#268bd2;font-weight:bold}.src .variable-name{color:#00008b}.src .type{color:#6c71c4}.src .constant-face{color:#d33682}.src .doc{color:#666666;background-color:#e2e6e8}.src .string{color:#888888}.src .preprocessor{color:#859900}.src .negation-char,.src .sh-escaped-newline{color:#ff0000}.src .todo{color:#ffffff;background:#dc322f}.src .note{color:#ffffff;background:#2aa198}.src .hack{color:#ffffff;background:#859900}.src .paren{color:#a0a090;font-weight:bold}.src .minor-control-construct{color:#268bd2}.src .major-control-construct{color:#bf4040}.src-cpp .constant{color:#999999}.src-emacs-lisp .paren{color:#c9c9c4}.src-sh .string,.src-sh .comment{color:inherit}.src-python .highlight-indentation{border-right:2px solid #eeeeee}.src-css .css-selector{color:#478547}.src-css .css-property{color:#406abf}.src-xml .nxml-element-prefix{color:#bf40bf}.src-xml .nxml-element-local-name{color:#406abf;font-weight:normal}.src-xml .nxml-attribute-local-name{color:#478547}.src-xml .nxml-element-colon{color:#a3adc2}.src-xml .nxml-tag-delimiter,.src-xml .nxml-tag-slash{color:#9cabc9;font-weight:bold}table.standard td.left,table.standard th.left{text-align:left}table.standard td.center,table.standard th.center{text-align:center}table.standard td.right,table.standard th.right{text-align:right}@media screen{*[class^="section-number"]{color:hsl(var(--hue), 20%, 50%)}h2 .section-number{display:inline-block;margin-left:0;padding-left:0.5em;text-align:center;width:var(--h2-margin);color:hsl(var(--hue), 50%, 80%)}h2 .section-number+span{margin-left:0}h3 .section-number{float:left;text-align:center;width:2em;margin-right:0.5em;color:hsl(var(--hue), 25%, 90%);background:hsl(var(--hue), 50%, 50%);border-radius:4px;text-shadow:0px 2px 5px rgba(0,0,0,0.8)}}@media screen and (min-width: 550px){h3 .section-number{background:url(/img/svg-blob-mini.svg) no-repeat center center;background-size:2em 2em;height:2em;margin-left:-2.5em;margin-top:-0.3em;padding-top:0.3em}}.print-endnote{display:none}@media print{@page{margin:1in}body{--font-size: 13pt;--body-width: 100vw;--serif: "Book Antiqua", "Times New Roman", serif;--sans-serif: "Helvetica", sans-serif;--monospace: "Courier", "Courier New", monospace}h2,h3{page-break-after:avoid}figure{page-break-inside:avoid}p,li{orphans:5;widows:5}section p a,section li a{text-decoration:underline}header nav,.comments{display:none}.print-endnote{display:unset}.print-endnote li{list-style-type:none;word-break:break-all}}
+
+@media print{header::before{position:absolute;left:0;top:0;content:url(http://chart.apis.google.com/chart?chs=120x120&cht=qr&chl=https%3A%2F%2Fwww.redblobgames.com%2Fpathfinding%2Fa-star%2Fintroduction.html);}}
+	  
+    figure svg, figure img { width: auto; height: auto; }
+    .side-by-side { display: flex; justify-content: center; }
+    .side-by-side > figure { flex: 0 1 250px; flex-basis: calc(var(--body-width)/2); margin: 0; }
+    .side-by-side > figure > svg { padding: 0 11px; }
+    section > .width-150percent { max-width: 100vw; width: calc(1.5 * var(--body-width)); }
+
+    @media (any-hover: hover), (-moz-touch-enabled: 0) { .no-hover { display: none; } }
+      
+    svg { pointer-events: none; overflow: visible; }
+    g.base .tile { pointer-events: visible; }
+    g.base.editable .tile { cursor: crosshair; }
+    g.frontier .frontier { fill: hsl(220, 50%, 50%); }
+    
+    path.parent { fill: none; stroke: hsl(30, 20%, 65%); stroke-width: 3px; }
+    #arrowhead { fill: hsl(30, 20%, 65%); }
+
+    path.path-trace { fill: none; stroke: hsl(30, 5%, 90%); stroke-width: 11px; stroke-linecap: round; }
+
+    g.heuristic_distance .heuristic { fill: none; stroke: hsl(330, 50%, 50%); stroke-width: 4px; }
+    
+    path.contour { fill: none; stroke-width: 1px; }
+    
+    .draggable { pointer-events: visible; cursor: move /* IE */; cursor: -webkit-grab; cursor: -moz-grab; cursor: grab; touch-action: none; }
+    .draggable:hover { filter: url(#drop-shadow); }
+    .dragging, .dragging .draggable { cursor: -webkit-grabbing; cursor: -moz-grabbing; cursor: grabbing; }
+    path.start { fill: hsl(0, 50%, 50%); stroke: white; stroke-width: 0.2px; }
+    path.goal { fill: none; stroke: hsl(310, 50%, 50%); stroke-width: 7px; }
+
+    g.base .tile { fill: hsl(0, 10%, 85%); }
+    g.base .visited { fill: hsl(30, 20%, 75%); }
+/* hi////??? */
+    g.base .frontier { fill: hsl(220, 30%, 80%); }
+
+    g.base .weight-Infinity { fill: hsl(60, 5%, 50%); stroke: hsl(60, 5%, 50%); stroke-width: 1.5px; }
+    g.base .weight-5 { fill: hsl(110, 20%, 60%); }
+    .color-frontier g.base .frontier,
+    .color-frontier g.base .current { fill: hsl(220, 50%, 60%); }
+    .color-current g.base .current { fill: hsl(70, 70%, 70%); }
+
+    #diagram-early-exit-false g.numeric_label_cost_so_far text.label,
+    #diagram-early-exit-true g.numeric_label_cost_so_far text.label
+    { fill: hsl(0, 10%, 40%); }
+
+    .intro-diagram .intro-map-background rect.dungeon { fill: hsl(110, 20%, 60%); }
+    .intro-diagram .intro-map-background rect.wilderness { fill: hsl(200, 50%, 70%); }
+    .intro-diagram g.base .tile { fill: hsl(0, 0%, 100%); fill-opacity: 0.9; stroke: hsl(0, 0%, 60%); stroke-width: 0.5px; stroke-opacity: 0.5; }
+    .intro-diagram .path-trace { stroke: hsl(280, 20%, 70%); stroke-opacity: 0.7; }
+    .intro-diagram g.base :nth-child(6),
+    .intro-diagram g.base :nth-child(11),
+    .intro-diagram g.base :nth-child(12),
+    .intro-diagram g.base :nth-child(13)
+    { fill: hsl(110, 40%, 80%); }
+    .intro-diagram g.base :nth-child(17),
+    .intro-diagram g.base :nth-child(23),
+    .intro-diagram g.base :nth-child(25)
+    { fill: hsl(60, 50%, 80%); }
+
+    .edges path { stroke: hsl(160, 30%, 50%); stroke-width: 4.5px; }
+    .nodes circle { fill: hsl(230, 50%, 60%); stroke: hsl(230, 30%, 50%); stroke-width: 0.5px; }
+    
+    #diagram-graphs1-over path.path-trace { stroke-opacity: 0.0; }
+    #diagram-graphs1-over.alternate path.path-trace { stroke-opacity: 0.7; }
+    #diagram-graphs1 div.alternate-show { visibility: hidden; }
+    #diagram-graphs1.alternate div.alternate-hide { visibility: hidden; }
+    #diagram-graphs1.alternate div.alternate-show { visibility: visible; }
+
+    button.hover {
+        font-weight: bold;
+        font-size: inherit;
+        font-family: inherit;
+        border: 1px outset hsl(0, 24%, 95%);
+        border-radius: 4px;
+        background: hsl(0, 24%, 95%);
+        color: #000;
+        margin: 4px;
+        padding: 2px;
+        -webkit-appearance:none;
+        cursor: pointer;
+    }
+    button.hover:hover {
+        border-color: hsl(0, 48%, 46%);
+        background: hsl(0, 48%, 46%);
+        color: #fff;
+        box-shadow: 1px 1px 3px hsla(0, 0%, 0%, 0.5);
+    }
+
+    #diagram-graphs2-grid g.base .visited { fill: hsl(0, 10%, 95%); }
+    #diagram-graphs2-grid g.base .weight-2 { fill: hsl(110, 40%, 80%); stroke: hsl(110, 40%, 80%); stroke-width: 0.5px; }
+    #diagram-graphs2-grid g.base .weight-3 { fill: hsl(60, 50%, 80%); stroke: hsl(60, 50%, 80%); stroke-width: 0.5px; }
+    #diagram-graphs2-grid g.base .weight-Infinity { fill: hsl(110, 20%, 60%); stroke: hsl(110, 20%, 60%); }
+    #diagram-graphs2-grid g.base .weight-20 { fill: hsl(200, 50%, 70%); stroke: hsl(200, 50%, 70%); stroke-width: 0.5px; }
+    #diagram-graphs2-grid .path-trace { stroke: hsl(280, 30%, 70%); stroke-width: 5px; }
+
+    #diagram-graphs2-waypoints { visibility: hidden; }
+    #diagram-graphs2-waypoints.show { visibility: visible; }
+    #diagram-graphs2-grid { visibility: hidden; background-color: white; }
+    #diagram-graphs2-grid.show { visibility: visible; }
+    
+    #diagram1 .play_pause { display: none; }
+    #diagram1 .label { fill: hsl(0, 10%, 80%); }
+    #diagram1 path.edge { stroke: blue; }
+
+    #diagram2 .draggable_marker_goal .draggable { cursor: crosshair; }
+    #diagram2 g.base .tile { fill: hsl(0, 10%, 85%); }
+    #diagram2 g.base .weight-Infinity { fill: hsl(60, 5%, 50%); stroke: hsl(60, 5%, 50%); stroke-width: 1.5px; }
+    #diagram2 .path-trace,
+    #diagram-astar-1 g.cost_so_far .path-trace,
+    #diagram-astar-3 g.cost_so_far .path-trace
+    { stroke: hsl(280, 50%, 50%); stroke-width: 4px; }
+    
+    #diagram-astar-1 path.goal,
+    #diagram-astar-2 path.goal
+    { stroke-width: 6px; }
+    
+    #diagram-weights-false path.goal,
+    #diagram-weights-true path.goal
+    { stroke-width: 8px; }
+    
+    #diagram-nongrid path.goal
+    { stroke-width: 10px; }
+    
+    .slider button { font-size: large; }
+    figcaption { font-family: var(--sans-serif); }
+    
+    pre em { font-weight: inherit; font-style: inherit; background-color: #ffc; padding: 2px 0; }
+    .frontier { color: hsl(220, 50%, 50%); }
+    .start { color: hsl(0, 50%, 50%); }
+    .current { color: hsl(70, 100%, 30%); }
+    .visited, .came_from { color: hsl(30, 40%, 40%); }
+    .next { color: hsl(150, 40%, 40%); }
+    .goal { color: hsl(310, 50%, 50%); }
+    .path { color: hsl(280, 50%, 50%); }
+    .cost_so_far, .new_cost { color: hsl(340, 30%, 40%); }
+    .frontier, .start, .current, .visited, .came_from, .next, .goal, .path, .cost_so_far, .new_cost { font-weight: bold; }
+  </style><script>function $l(s,e,d){d=document;if(d.location.hostname!='localhost'){e=d.createElement('script');e.async=true;e.src=s;e.dataset.timestamp=+new Date();d.body.appendChild(e)}}</script></head>
+
+<body class="gameprog"><header>
+<div class="subheading">
+    &nbsp; from <a href="https://www.redblobgames.com/">Red Blob Games</a></div>
+
+</header>
+<main>
+<section>
+
+<div id="search-loop"></div>
+<div id="diagram-astar" class="side-by-side width-150percent">
+<figure id="diagram-astar-3"><figcaption>A*, LIFO</figcaption></figure>
+<figure id="diagram-astar-4"><figcaption>A*, LIFO, shuffle</figcaption></figure>
+</div>
+<div id="diagram-astar" class="side-by-side width-150percent">
+<figure id="diagram-astar-5"><figcaption>A*, FIFO</figcaption></figure>
+<figure id="diagram-astar-6"><figcaption>A*, FIFO, shuffle</figcaption></figure>
+</div>
+
+
+<script src="./a_star_viz/d3.v3.min.js"></script>
+<script src="./a_star_viz/draggable.v2.js"></script>
+<script src="./a_star_viz/_introduction.js"></script>
+
+
+</body></html>

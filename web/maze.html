@@ -1,0 +1,607 @@
+
+<!-- saved from url=(0054)http://scottcornaby.com/games/3dbrowsermaze/index.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+		<title>Maze With three.js</title>
+	</head>
+	<!--<body onload="runMaze();" onkeydown="doKeyDown(event);" onkeyup="doKeyUp(event);">-->
+	<body>
+		<canvas id="mazeCanvas" width="600" height="450"></canvas>
+        <h4>up: move forward. left/right: turn.</h4>
+        <h4>OR: click to use your mouse to look, hit up, space, or w to move forward.</h4>
+        <h4>explore the maze and look for the goal (swirling blue cube)</h4>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
+<script src="./maze_files/PointerLockControls.js"></script>
+<script>
+//import * as THREE from './maze_files/three.min.js';
+//import { PointerLockControls } from './maze_files/PointerLockControls.js';
+
+var maze = `
+x xGx
+x x x
+x   x
+xSxxx
+x   x
+xxx x
+xxxGx
+`;
+var maze = `
+xxxxxxxxxxxxx
+xG    x    Gx
+xxxxx x xxxxx
+x       xxxxx
+xxxxx S xxxxx
+xxxxxxxxxxxxx
+`;
+var _maze = `
+xxxxx
+xS  x
+x   x
+xxxxx
+`;
+var _maze = `
+  x   
+      
+ S    
+`;
+
+
+			//Object for keeping track of which keys are currently being pressed
+			var playerInput = new Object();
+			
+			//Important constants
+			const NORTH = 100;
+			const EAST = 101;
+			const WEST = 102;
+			const SOUTH = 103;
+const moveTime = 800;
+
+            let parsedMaze = maze.split('\n').filter(x => x.length).map(line => line.split(''));
+
+let b = document.querySelector('body');
+b.onkeydown = doKeyDown;
+b.onkeyup = doKeyUp;
+runMaze();
+
+			
+			//Track if a direction key has bene pressed
+			function doKeyDown(event){
+				var keynum;
+				
+				if(window.event){ //Browser is IE
+					keynum = event.keyCode;
+				}
+				else{
+					keynum = event.which;
+				}
+                setKey(keynum, 1);
+            }
+				
+            function setKey(keynum, value) {
+				if(keynum == 37){
+					playerInput.left = value;
+				}
+				else if(keynum == 38 || keynum == 32 || keynum == 119){
+					playerInput.up = value;
+				}
+				else if(keynum == 39){
+					playerInput.right = value;
+				}
+				else if(keynum == 40){
+					playerInput.down = value;
+				}
+			}
+
+			//Track if a direction key has been released
+			function doKeyUp(event){
+				var keynum;
+				
+				if(window.event){ //Browser is IE
+					keynum = event.keyCode;
+				}
+				else{
+					keynum = event.which;
+				}
+				
+                setKey(keynum, 0);
+			}
+
+
+            function parseMazeGrid(_gg) {
+				function MazeCell(northWall, eastWall, southWall, westWall){
+					this.northWall = northWall;
+					this.eastWall = eastWall;
+					this.southWall = southWall;
+					this.westWall = westWall;
+				}
+                let p = parsedMaze.map(row => {
+                    return row.map(cell => {
+                        if (cell == 'x') {
+						    return new MazeCell(true,true,true,true);
+                        } else {
+						    return new MazeCell(false,false,false,false);
+                        }
+                    });
+                });
+				p.forEach(function(mazeRow, row){
+					mazeRow.forEach(function(cell, col){
+						if(cell.northWall)
+                            if(p[row-1] && p[row-1][col]) p[row-1][col].southWall = true;
+						if(cell.eastWall)
+                            if(p[row][col+1]) p[row][col+1].westWall = true;
+						if(cell.southWall)
+                            if(p[row+1] && p[row+1][col]) p[row+1][col].northWall = true;
+						if(cell.westWall)
+                            if(p[row][col-1]) p[row][col-1].eastWall = true;
+						//if(cell.northWall)
+                        //    if(p[col][row-1]) p[col][row-1].southWall = true;
+						//if(cell.eastWall)
+                        //    if(p[col+1] && p[col+1][row]) p[col+1][row].westWall = true;
+						//if(cell.southWall)
+                        //    if(p[col][row+1]) p[col][row+1].northWall = true;
+						//if(cell.westWall)
+                        //    if(p[col-1] && p[col-1][row]) p[col-1][row].eastWall = true;
+					});
+				});
+                console.log(p);
+                return p;
+            }
+			
+			//Randomly generate a maze of a given size
+			function createMazeGrid(width, height){
+				function MazeCell(northWall, eastWall, southWall, westWall){
+					this.northWall = northWall;
+					this.eastWall = eastWall;
+					this.southWall = southWall;
+					this.westWall = westWall;
+				}
+				
+				var mazeGrid = Array(height);
+				
+				//Set up a default maze of close cells
+				for( var i = 0; i<height; i++){
+					var row = Array(width);
+					for(var j = 0; j<width; j++){
+						row[j] = new MazeCell(true,true,true,true);
+					}
+					mazeGrid[i] = row;
+				}
+				
+				//Randomly open a west or north passage in every possible cell
+				for( var i = 0; i<height; i++){
+					for(var j = 0; j<width; j++){
+						if(i>0 && j>0){ //If it is not an edge cell open a passage randomly
+							if(Math.random()>0.5){
+								mazeGrid[i][j].northWall=false;
+								mazeGrid[i-1][j].southWall=false;
+							}
+							else{
+								mazeGrid[i][j].westWall=false;
+								mazeGrid[i][j-1].eastWall=false;
+							}
+						}
+						else if(j > 0){ //If it is along the north edge open a west passage
+							mazeGrid[i][j].westWall=false;
+							mazeGrid[i][j-1].eastWall=false;
+		
+						}
+						else if(i > 0){ //If it is along the west edge open a north passage
+							mazeGrid[i][j].northWall=false;
+							mazeGrid[i-1][j].southWall=false;
+						}
+					}
+				}
+
+				return mazeGrid;
+			}
+			
+			//Add 3D walls to a scene based off a maze object
+			function placeWallGraphics(scene, mazeGrid){
+				var wallGeometry = new THREE.PlaneGeometry( 1, 0.5 );
+				var wallMaterial = new THREE.MeshStandardMaterial( );
+				
+				
+				mazeGrid.forEach(function(mazeRow, rowCount){
+					mazeRow.forEach(function(mazeCell, colCount){
+						if(mazeCell.northWall) {
+							placeWall(colCount, rowCount, 'n');
+							//placeWall(colCount, rowCount-1, 's');
+                        }
+						if(mazeCell.eastWall) {
+							placeWall(colCount, rowCount, 'e');
+							//placeWall(colCount+1, rowCount, 'w');
+                        }
+						if(mazeCell.southWall) {
+							placeWall(colCount, rowCount, 's');
+							//placeWall(colCount, rowCount+1, 'n');
+                        }
+						if(mazeCell.westWall) {
+							placeWall(colCount, rowCount, 'w');
+							//placeWall(colCount-1, rowCount, 'e');
+                        }
+					});
+				});
+				
+				//Mini function for actually building and placing graphics for a wall
+				function placeWall(x,y,direction){
+					var wall = new THREE.Mesh( wallGeometry, wallMaterial );
+					wall.position.z = y*1;
+					wall.position.x = x*1;
+					if(direction == 'n'){
+						wall.position.z -= 0.5;
+					}
+					else if(direction == 'e'){
+						wall.position.x += 0.5;
+						wall.rotation.y = -Math.PI/2;
+					}
+					else if(direction == 's'){
+						wall.position.z += 0.5;
+						wall.rotation.y = Math.PI;
+					}
+					else if(direction == 'w'){
+						wall.position.x -= 0.5;
+						wall.rotation.y = Math.PI/2;
+					}
+					else{
+						return false;
+					}
+					
+					scene.add(wall);
+				}
+			}
+
+            function findPos(parsedMaze, ident) {
+                let res = [];
+                for (var x = 0; x < parsedMaze.length; x++) {
+                    for (var y = 0; y < parsedMaze[0].length; y++) {
+                        if (parsedMaze[x][y] == ident) {
+                            res.push([x, y]);
+                        }
+                    }
+                }
+                return res;
+            }
+
+			function makeGoalCollectables(parsedMaze){
+                return findPos(parsedMaze, 'G').map(([x,y]) => {
+                    return {
+                        x: x,
+                        y: y,
+                        action: function() {
+                            alert("Congratulations! You won the game! Refresh the page to play again.");
+                        },
+                    };
+                });
+			}
+			
+			//Creates some 3D cubes to mark where teh collectables are
+			function placeCollectableGraphics(scene, collectables){
+				var collectableGeometry = new THREE.BoxGeometry( 0.25, 0.25, 0.25 );
+				var collectableMaterial = new THREE.MeshStandardMaterial( {color: 0x000088} );
+				
+				collectables.forEach(function(collectable){
+					var collectableObject = new THREE.Mesh(collectableGeometry, collectableMaterial);
+					collectableObject.position.z = collectable.x;
+					collectableObject.position.x = collectable.y;
+					scene.add(collectableObject);
+					collectable.objectRef = collectableObject;
+				});
+				
+			}
+			
+			//Randomly generate collectables for a given maze
+			function createCollectiblesList(number, grid){
+				
+				var collectables = [];
+				
+				var width = grid[0].length;
+				var height = grid.length;
+				
+				//Variables for use in a closure that will help collectables keep track of whether the entire
+				//set of collectables created by this function call have been found or not
+				var totalCollectibles = number;
+				var collectablesCollected = 0;
+				
+				for(var i=0; i < number; i++){
+					var x;
+					var y;
+					var unique = false;
+					
+					//Make sure two collectables are never placed on the same square
+					while(!unique){
+						x = Math.floor(Math.random()*width);
+						y = Math.floor(Math.random()*height);
+						unique = true;
+						collectables.forEach(function(collectable){
+							if(collectable.x == x && collectable.y == y){
+								unique = false;
+							}
+						});
+					}
+					
+					//Build the actual collectable and give it a function that can be called when collected
+					collectables.push({
+							x:x, 
+							y:y, 
+							action:function(){
+								collectablesCollected++;
+								alert("You have picked up "+collectablesCollected+" out of "+totalCollectibles+" collectables");
+								if(collectablesCollected == totalCollectibles){
+									alert("Congratulations! You won the game! Refresh the page to play again.");
+								}
+							}
+						});
+				}
+					
+				return collectables;
+			}
+			
+			//Examine a given square in a maze and see if there is a collectable
+			//If there is a collectable run any code associated with it and then remove both its data and its graphics
+			function processCollectableCollisions(x, y,collectables,scene){
+				collectables.forEach(function(collectable,index){
+					if(collectable.x == x && collectable.y == y){
+						collectable.action(); //Run the object's event
+						scene.remove(collectable.objectRef); //Remove graphics from scene
+						collectables.splice(index,1); //Remove collectable from list
+					}
+				});
+			}
+			
+			//Check if a move is allowed or if it would run into a wall
+			function validMove(mazeGrid, x, y, direction){
+				if(direction == NORTH)
+				{
+					return !mazeGrid[x][y].northWall;
+				}
+				else if(direction == EAST)
+				{
+					return !mazeGrid[x][y].eastWall;
+				}
+				else if(direction == SOUTH)
+				{
+					return !mazeGrid[x][y].southWall;
+				}
+				else if(direction == WEST)
+				{
+					return !mazeGrid[x][y].westWall;
+				}
+				return false;
+			}
+
+			//Our top level function that sets up all our data and then starts the game loop
+			function runMaze(){
+				//Get the vancas where we want to draw our maze
+				var mazeCanvas = document.getElementById("mazeCanvas");
+
+				//Set up our Three.js 3D library
+				var scene = new THREE.Scene();
+				var renderer = new THREE.WebGLRenderer({ canvas: mazeCanvas });
+				var camera = new THREE.PerspectiveCamera( 75, mazeCanvas.width/mazeCanvas.height, 0.1, 1000 );
+                var controls = new PointerLockControls( camera, document.body, 0.005 );
+                window.controls = controls;
+				b.addEventListener( 'click', function () {
+					controls.lock();
+				}, false );
+				scene.add( controls.getObject() );
+				
+				//Build a random maze and add it to the 3D scene
+				//var mazeGrid = createMazeGrid(5,5);
+				var mazeGrid = parseMazeGrid(maze);
+				placeWallGraphics(scene, mazeGrid);		
+
+				//Generate some random collectables and add them to the 3D scene
+				//var collectables = createCollectiblesList(5, mazeGrid);
+				var collectables = makeGoalCollectables(parsedMaze);
+				placeCollectableGraphics(scene, collectables);
+                window.collectables = collectables;
+
+				//Create a light to follow the players camera around
+				var playerPointLight = new THREE.PointLight();
+				playerPointLight.position.set( 0, 0, 0 );
+				scene.add( playerPointLight );
+				
+				//Constants for keeping track of what the game is currently doing
+				const WAITING = 1;
+				const TURNING_RIGHT = 2;
+				const TURNING_LEFT = 3;
+				const MOVING_FORWARD = 4;
+
+				//Variables for keeping track of the player's position and movement
+				//Needed so we can animate the maze properly
+				var last_update = Date.now();
+				var state = WAITING;
+				var direction = maze.direction || NORTH;
+				var currentDirection = 0;
+				var turningArc = 0;
+				var walkDistance = 0;
+				var startX = 0;
+				var startZ = 0;
+
+                var [x, y] = findPos(parsedMaze, 'S')[0];
+                console.log(x,y)
+				
+				//Players default starting point
+				var player = {};
+				player.gridX = x;
+				player.gridY = y;
+                camera.position.z = player.gridX;
+                camera.position.x = player.gridY;
+						//Make the light follow the player
+						playerPointLight.position.x = camera.position.x;
+						playerPointLight.position.y = camera.position.y;
+						playerPointLight.position.z = camera.position.z;
+				player.direction = NORTH;
+				
+				
+				//Our main game loop.
+				//The browser wil try to call this 60 times a second but might fall behind so always check how much time has passed
+				var render = function () {
+					requestAnimationFrame( render );
+					
+					var now = Date.now();
+					
+					//How long since the last frame was drawn?
+					var deltaTime = now - last_update;
+					last_update = now;
+					
+					//If the player is doing nothing check for input
+					if(state == WAITING){
+						//Player wants to turn left
+						if(playerInput.left){
+							state = TURNING_LEFT;
+							switch(direction){
+								case NORTH:
+									direction = WEST;
+									break;
+								case EAST:
+									direction = NORTH;
+									break;
+								case SOUTH:
+									direction = EAST;
+									break;
+								case WEST:
+									direction = SOUTH;
+									break;
+							}
+							player.direction = direction;
+						}
+						//Player wants to turn right
+						else if(playerInput.right){
+							state = TURNING_RIGHT;
+							switch(direction){
+								case NORTH:
+									direction = EAST;
+									break;
+								case EAST:
+									direction = SOUTH;
+									break;
+								case SOUTH:
+									direction = WEST;
+									break;
+								case WEST:
+									direction = NORTH;
+									break;
+							}
+							player.direction = direction;
+						}
+						//Player wants to try and move forward
+						else if(playerInput.up) {
+                            if (controls.isLocked === true) {
+                                let o = controls.getObject();
+                                let y = camera.quaternion.y;
+                                var d;
+                                if (-0.25 < y && y < 0.25) {
+                                    d = NORTH;
+                                } else if (-0.75 < y && y < -0.25) {
+                                    d = EAST;
+                                } else if (0.75 < y || y < -0.75) {
+                                    d = SOUTH;
+                                } else if (0.25 < y && y < 0.75) {
+                                    d = WEST;
+                                }
+                                player.direction = direction = d;
+                            //console.log(controls.isLocked === true, o.position, o.rotation, o.rotation.y, camera.rotation);
+                            }
+                            if (validMove(mazeGrid, player.gridX, player.gridY, player.direction)){
+							walkingDistance = 0;
+							startX = camera.position.x;
+							startZ = camera.position.z;
+							state = MOVING_FORWARD;
+							switch(direction){
+								case NORTH:
+									player.gridX--;
+									break;
+								case EAST:
+									player.gridY++;
+									break;
+								case SOUTH:
+									player.gridX++;
+									break;
+								case WEST:
+									player.gridY--;
+									break;
+							}						
+                            console.log(player);
+						}
+						}
+					}
+					//Player is already turning left. Ignore input and animate turn
+					if(state == TURNING_LEFT)
+					{
+						turningArc += Math.PI/2 * deltaTime/moveTime;
+						//Player has finished turning. Go back to waiting.
+						if(turningArc >= Math.PI/2){
+							turningArc = Math.PI/2;
+							currentDirection = currentDirection + turningArc;
+							turningArc = 0;
+							state = WAITING;
+						}
+						//Rotate camera to match turn so far
+						camera.rotation.y = currentDirection + turningArc;
+					}
+					//Player is already turning right. Ignore input and animate turn
+					if(state == TURNING_RIGHT)
+					{
+						turningArc += Math.PI/2 * deltaTime/moveTime;
+						//Player has finished turning. Go back to waiting.
+						if(turningArc >= Math.PI/2){
+							turningArc = Math.PI/2;
+							currentDirection = currentDirection - turningArc;
+							turningArc = 0;
+							state = WAITING;
+						}
+						//Rotate camera to match turn so far
+						camera.rotation.y = currentDirection - turningArc;
+					}
+					//Player is already moving forward. Ignore input and animate movement.
+					if(state == MOVING_FORWARD)
+					{
+						walkingDistance += 1 * deltaTime/moveTime;
+						
+						//Player has finished moving. Check for collectables and go back to waiting.
+						if(walkingDistance >= 1){
+							walkingDistance = 1;
+							state = WAITING;
+							processCollectableCollisions(player.gridX, player.gridY,collectables,scene);
+						}
+						//Move the camera to match the direction and distance the player is walking
+						switch(direction){
+							case NORTH:
+								camera.position.z = startZ - walkingDistance;
+								break;
+							case EAST:
+								camera.position.x = startX + walkingDistance;
+								break;
+							case SOUTH:
+								camera.position.z = startZ + walkingDistance;
+								break;
+							case WEST:
+								camera.position.x = startX - walkingDistance;
+								break;
+						}
+						//Make the light follow the player
+						playerPointLight.position.x = camera.position.x;
+						playerPointLight.position.y = camera.position.y;
+						playerPointLight.position.z = camera.position.z;
+					}
+					
+					//Done updating the player. Update the rest of the world now
+					//Make our collectables spin
+					collectables.forEach(function(collectable){
+						var collectableObject = collectable.objectRef;
+						collectableObject.rotation.x += 2 * deltaTime/1000;
+						collectableObject.rotation.y += 2 * deltaTime/1000;
+					});
+					
+					renderer.render(scene, camera);
+
+//camera.position.y = 8;
+//camera.lookAt(collectables[0].objectRef.position);
+
+				};
+
+				render();
+			}
+		</script>
+	
+</body></html>
