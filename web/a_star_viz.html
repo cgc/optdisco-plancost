@@ -41,7 +41,7 @@
     g.base .frontier { fill: hsl(220, 30%, 80%); }
 
     g.base .weight-Infinity { fill: hsl(60, 5%, 50%); stroke: hsl(60, 5%, 50%); stroke-width: 1.5px; }
-    g.base .weight-5 { fill: hsl(110, 20%, 60%); }
+    g.base .weight-2, g.base .weight-3, g.base .weight-5 { fill: hsl(110, 20%, 60%); }
     .color-frontier g.base .frontier,
     .color-frontier g.base .current { fill: hsl(220, 50%, 60%); }
     .color-current g.base .current { fill: hsl(70, 70%, 70%); }
@@ -150,6 +150,12 @@
 </header>
 <main>
 <section>
+
+<p>
+<a href="?step_costs=">Step costs [1, Inf]</a><br />
+<a href="?step_costs=2">Step costs [1, 2, Inf]</a><br />
+<a href="?step_costs=5">Step costs [1, 5, Inf]</a>
+</p>
 
 <div id="search-loop"></div>
 <div id="diagram-astar" class="side-by-side width-150percent">

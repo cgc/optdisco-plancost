@@ -571,7 +571,7 @@ var SearchLoop = /** @class */ (function () {
         this.diagrams.forEach(function (diagram) { diagram.redraw(); });
     };
     SearchLoop.prototype.set_play_pause = function (state) {
-        this.play_pause_button.text(state ? "Stop" : "Run search (in a loop)");
+        this.play_pause_button.text(state ? "Stop" : "Run search in a loop (useful when stochastic)");
         if (state && this.animation_id == null) {
             this.animation_id = setInterval(this.loop.bind(this), 100);
             if (this.position == this.max_value) {
@@ -1522,6 +1522,8 @@ function makeDiagram9() {
 }
 //var diagram9 = makeDiagram9();
 
+let query = new URLSearchParams(document.location.search);
+
 function makeDiagram() {
     var graph = new SquareGrid(15, 15);
     var layout = new SquareGridLayout(graph, 19);
@@ -1562,10 +1564,12 @@ function makeDiagram() {
     let ds = [];
 
     function make(selector, o) {
+        let other_step_costs = query.get('step_costs') ? query.get('step_costs').split(',').map(Number) : [];
         let layers = [
             [BaseLayer],
             //[GraphEditorLayer, [1, 5, Infinity]],
-            [GraphEditorLayer],
+            [GraphEditorLayer, [1, Infinity].concat(other_step_costs)],
+            //[GraphEditorLayer],
             [ReconstructedPathLayer, function () { return exit.id; }],
             [NumericLabelLayer, 'sort_key'],
             [DraggableMarkerLayer, 'start', svg_blob(8), starts, 0],
