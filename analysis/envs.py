@@ -1,5 +1,6 @@
 import numpy as np
 import itertools
+import torch
 
 class Graph(object):
     def __init__(self, graph):
@@ -99,6 +100,17 @@ def block_states(N=3, canonicalize=True, hanoi=False, height_limits=None):
     return states
 
 class Blocks(object):
+    '''
+    >>> b = Blocks(3, canonicalize=True)
+    >>> b.states_features[b.step(b.states_to_idx[(('C', 'B'), ('A',), ())], (0, 1))[0]]
+    (('A', 'B'), ('C',), ())
+    >>> b = Blocks(3, canonicalize=False)
+    >>> b.states_features[b.step(b.states_to_idx[(('C', 'B'), ('A',), ())], (0, 1))[0]]
+    (('C',), ('A', 'B'), ())
+    >>> b = Blocks(3, canonicalize=False, hanoi=True)
+    >>> b.states_features[b.step(b.states_to_idx[(('C', 'B'), ('A',), ())], (0, 1))[0]]
+    (('C', 'B'), ('A',), ())
+    '''
     def __init__(self, num_blocks, *, canonicalize=True, hanoi=False, height_limits=None):
         # HACK do not change this variable
         num_columns = 3
@@ -149,8 +161,25 @@ class Blocks(object):
             return s_nexti, self.step_reward, 0.0
         # HACK goal??
 
-if __name__ == '__main__':
-    import doctest
-    fail_count, test_count = doctest.testmod()
-    if not fail_count:
-        print('\n\t** All {} tests passed! **\n'.format(test_count))
+def blocks_state_match_count(a, b):
+    '''
+    >>> assert blocks_state_match_count((('A', 'B', 'C'),()), (('A', 'B', 'C'),())) == 3
+    >>> assert blocks_state_match_count((('A', 'B'), (), ('C',)), (('A',), ('C', 'B'), ())) == 1
+    >>> assert blocks_state_match_count((('A', 'B', 'C'),()), (('C', 'B', 'A'),())) == 0
+    '''
+    same = 0
+    for ca, cb in zip(a, b):
+        for ita, itb in zip(ca, cb):
+            if ita != itb:
+                break
+            same += 1
+    return same
+
+def compute_blocks_distance_heuristic(env, tqdm=lambda x: x):
+    # HACK consider height limits?
+    assert not env.canonicalize
+    d = torch.zeros((len(env.states), len(env.states)))
+    for s in tqdm(env.states):
+        for g in env.states:
+            d[s, g] = env.num_blocks - blocks_state_match_count(env.states_features[s], env.states_features[g])
+    return d

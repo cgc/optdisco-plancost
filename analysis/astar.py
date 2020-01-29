@@ -16,13 +16,15 @@ def a_star_cost(
     #start=None,
     #goal_test=None,
     shuffle_actions=True,
-    seed=None,
     return_path=False,
     next_state=None,
     #return_all_equal_cost_paths=False,
     #depth_limit=None,
     queue='lifo',
+    seed=None,
 ):
+    r = random.Random(seed)
+
     if next_state is None:
         next_state = np.array([
             [env.step(s, a)[0] for a in env.actions]
@@ -148,7 +150,7 @@ def a_star_cost(
 
         if shuffle_actions:
             #actions = np.random.permutation(len(env.actions))
-            random.shuffle(actions)
+            r.shuffle(actions)
         for aidx in actions:
             a = env.actions[aidx]
             #neighbor, _, _ = env.step(current, a)

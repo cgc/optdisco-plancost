@@ -770,7 +770,11 @@ def compute_random_walk_search_cost(env):
         search_cost[:, goal] = sr.sum(axis=1)
     return search_cost
 
-def option_learner(
+def option_learner(*args, **kwargs):
+    d = option_learner_grad(*args, **kwargs)
+    return d['terminations'], d['res']
+
+def option_learner_grad(
     env,
     *,
     search_cost=None,
@@ -797,11 +801,12 @@ def option_learner(
     goal_uniform_random=False,
     show_all_metapolicies=False,
     add_goal_options=False,
+    debug=True,
 ):
     seed = seed or np.random.randint(2**30)
-    print('seed', seed)
-    np.random.seed(seed)
-    term_start = np.random.uniform(0, term_max, size=(num_options, len(env.states)))
+    if debug: print('seed', seed)
+    r = np.random.RandomState(seed)
+    term_start = r.uniform(0, term_max, size=(num_options, len(env.states)))
     for idx, val in term_start_tweaks or []: term_start[idx] = val
     terminations_opt = (
         torch.tensor(term_start.tolist(), requires_grad=True)
@@ -850,10 +855,10 @@ def option_learner(
         loss = grad_cost()
         loss.backward(retain_graph=True)
         if ((idx+1) % progress) == 0:
-            print(idx, loss.item())
+            if debug: print(idx, loss.item())
         opt.step()
         if reset is not None and ((idx+1) % reset) == 0:
-            print(idx, 'Reset optimizer state')
+            if debug: print(idx, 'Reset optimizer state')
             opt.state.clear()
 
     if goal_uniform_random:
@@ -885,7 +890,11 @@ def option_learner(
             plot_grid(env, eta[o].numpy(), vmin=0)#, vmax=1)
             plt.title(f'O {o} Eta')
 
-    return terminations_opt.detach(), res
+    return dict(
+        terminations=terminations_opt.detach(),
+        res=res,
+        seed=seed,
+    )
 
 def make_option_terminations(env, option_terms):
     '''
