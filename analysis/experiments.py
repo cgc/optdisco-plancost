@@ -7,6 +7,8 @@ import inspect
 import diffplan
 import joblib
 import os
+import astar
+import envs
 
 experiment_envs = dict(
     f2c=prior_envs.f2c,
