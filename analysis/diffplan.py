@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import copy
 import random
 import graphviz
+import heapq
+import itertools
 
 class Line(object):
     def __init__(self, size=4):
@@ -913,14 +915,23 @@ def env_rect(env):
         for si, s in enumerate(env.states_features)
     ]
 
-def plot_graph(env, *, eta=None, alphas=None, labels=False, layout='neato'):
+def plot_graph(
+    env, *, eta=None, alphas=None, z=None, labels=False, layout='neato',
+    size=None,
+    node_arg={}, vmin=None, vmax=None
+):
     def alpha_to_hex(alpha):
         return '%02x' % (int(alpha*255))
-
+    if z is not None:
+        z = np.array(z)
+        vmin = vmin or z.min()
+        vmax = vmax or z.max()
+        z = np.clip(z, vmin, vmax)
+        alphas = (z - vmin) / (vmax - vmin)
     if eta is not None:
         alphas = eta.max(0).values
     g = graphviz.Graph()
-    g.attr('graph', layout=layout)
+    g.attr('graph', layout=layout, size=size and str(size))
     next_states = torch.LongTensor([[env.step(s, a)[0] for a in env.actions] for s in env.states])
     for s in env.states:
         color = '#008800'
@@ -934,10 +945,25 @@ def plot_graph(env, *, eta=None, alphas=None, labels=False, layout='neato'):
             label = '|'.join([''.join(c) for c in env.states_features[s]])
         elif labels:
             label = labels[s]
+        elif labels is False:
+            label = ''
+        default_args = dict(color='black', fillcolor=f'{color}{alpha_to_hex(alpha)}', style='filled',
+               fontsize=str(8), width=str(0.25), height=str(0.1))
+        if labels is False:
+            default_args['shape'] = 'circle'
+            default_args['width'] = default_args['height'] = str(0.1 + alpha * 0.2)
+        else:
+            default_args['shape'] = 'rect'
+        if hasattr(env, 'pos'):
+            x, y = env.pos[s]
+            node_arg['pos'] = f'{y},{x}!'
+        g.node(str(s), label=label, **dict(default_args, **node_arg))
+        '''
         shape = 'point' if labels is False else 'rect'
         g.node(str(s), color=f'{color}{alpha_to_hex(alpha)}', style='filled', label=label,
                fontsize=str(8), width=str(0.25), height=str(0.1), shape=shape)
                #fontsize=str(8), width=str(0.25), height=str(0.1), shape='circle')
+        '''
         for ns in next_states[s]:
             if s >= ns:
                 continue
@@ -992,3 +1018,33 @@ def show_policy_or_eta(
         ax.plot(s[1], s[0], marker='o', c='k', fillstyle='none')
     for s in env.goal_set:
         ax.scatter(s[1], s[0], marker='*', c='k')
+
+
+def option_learner_enum(env, *, search_cost=None, num_options=1, option_sets=None, debug=True, tqdm=lambda x:x, **kwargs):
+    option_sets = option_sets or list(itertools.combinations(range(len(env.states)), num_options))
+
+    env = copy.copy(env)
+    # HACK dealing with weird initialization of Graph() instances
+    if not env.start_states:
+        env.start_states = list(env.states)
+    goal_set = env.goal_set or set(env.states)
+
+    results = []
+
+    for os in tqdm(option_sets):
+        vsum = 0
+        for g in goal_set:
+            env.goal_set = {g}
+            terms = torch.zeros((1+len(os), len(env.states)))
+            terms[len(os), env.states_to_idx[g]] = 100.
+            for o, oval in enumerate(os):
+                terms[o, oval] = 100.
+            r = option_planner_bfs_vec(env, terms, search_cost)
+            vsum += -r[0].item()
+        results.append(dict(options=os, value=vsum/len(goal_set)))
+
+    if debug:
+        for item in heapq.nsmallest(kwargs.get('top_results', 3), results, lambda d: -d['value']):
+            print(item)
+
+    return results

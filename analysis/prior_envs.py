@@ -42,6 +42,20 @@ graph = [
 
 f2c = envs.Graph(graph)
 
+# must be x (horiz), y (vert)
+f2c.pos = [
+    (0, 5),
+    (2, 5),
+    (1, 4),
+    (0, 3),
+    (2, 3),
+    (3, 2),
+    (5, 2),
+    (4, 1),
+    (3, 0),
+    (5, 0),
+]
+
 # fig. 2D
 
 def grid(idx=0, w=3, h=3):
@@ -65,6 +79,7 @@ f2d = envs.Graph(graph)
 # fig. 2F
 
 f2f = envs.Blocks(3, hanoi=True, canonicalize=False)
+f2f.goal_set = set(f2f.states_features)
 
 # hack towards balageur
 
