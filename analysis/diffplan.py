@@ -956,7 +956,7 @@ def plot_graph(
             default_args['shape'] = 'rect'
         if hasattr(env, 'pos'):
             x, y = env.pos[s]
-            node_arg['pos'] = f'{y},{x}!'
+            default_args['pos'] = f'{y},{x}!'
         g.node(str(s), label=label, **dict(default_args, **node_arg))
         '''
         shape = 'point' if labels is False else 'rect'

@@ -14,8 +14,12 @@ experiment_envs = dict(
     f2f=prior_envs.f2f,
 )
 
-def do_experiment(env_name, num_options, samples=100):
-    dump_name = f'{env_name}-o{num_options}.bin'
+def do_experiment(env_name, num_options, samples=100, cost='bfs'):
+    cost_name = dict(
+        bfs='',
+        astar='-astar',
+    )[cost]
+    dump_name = f'{env_name}-o{num_options}{cost_name}.bin'
     if os.path.exists(dump_name):
         print(dump_name, 'exists')
         return
@@ -28,13 +32,17 @@ def do_experiment(env_name, num_options, samples=100):
 
     env = copy.copy(experiment_envs[env_name])
 
-    D = diffplan.compute_distance_matrix(env)
-    BFS = diffplan.compute_bfs_matrix(env, D)
+    if cost=='bfs':
+        D = diffplan.compute_distance_matrix(env)
+        BFS = diffplan.compute_bfs_matrix(env, D)
+        c = (D + BFS).float()
+    elif cost=='astar':
+        h = envs.compute_blocks_distance_heuristic(env)
+        a_star_distance, a_star_cost = astar.compute_astar_matrix(env, h, samples=100, tqdm=tqdm)
+        c = (a_star_distance + a_star_cost).float()
 
     env.goal_set = set(env.states_features)
     env.start_states = env.states
-
-    c = (D + BFS).float()
 
     opts = dict(
         reset=400, progress=20, grad_steps=400,
@@ -58,5 +66,9 @@ if __name__ == '__main__':
     do_experiment('f2c', 1)
     do_experiment('f2c', 2)
     do_experiment('f2d', 1)
+    do_experiment('f2f', 1)
     do_experiment('f2f', 3)
     do_experiment('f2f', 6)
+    do_experiment('f2f', 1, cost='astar')
+    do_experiment('f2f', 3, cost='astar')
+    do_experiment('f2f', 6, cost='astar')
