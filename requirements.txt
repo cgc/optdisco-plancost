@@ -1,9 +1,0 @@
-ipypb
-sklearn
-graphviz
-matplotlib
-numba
-numpy
-scipy
-torch
-joblib
