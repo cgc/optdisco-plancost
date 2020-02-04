@@ -22,6 +22,7 @@ def a_star_cost(
     #depth_limit=None,
     queue='lifo',
     seed=None,
+    return_visited=False,
 ):
     r = random.Random(seed)
 
@@ -144,6 +145,13 @@ def a_star_cost(
                 nodes_visited=nodes_visited,
                 path=reconstruct_path(cameFrom, current) if return_path else None,
             )
+            if return_visited:
+                res['frontier'] = {
+                    s
+                    for (_, _, s) in prioritized_nodes
+                    if s not in closedSet
+                }
+                res['visited'] = set(closedSet)
 
         openSet.remove(current)
         closedSet.add(current)

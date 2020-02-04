@@ -6,6 +6,7 @@ import random
 import graphviz
 import heapq
 import itertools
+eps = torch.finfo().eps
 
 class Line(object):
     def __init__(self, size=4):
@@ -36,8 +37,8 @@ class Grid(object):
         self.states_features = list(zip(*np.where(self.npg!='x')))
         self.states = range(len(self.states_features))
         self.states_to_idx = {s: si for si, s in enumerate(self.states_features)}
-        self.goal_set = set(zip(*np.where(self.npg=='G')))
-        self.start_states = [self.states_to_idx[s] for s in list(zip(*np.where(self.npg=='S')))]
+        self.goal_set = set(zip(*np.where((self.npg=='G') | (self.npg=='D'))))
+        self.start_states = [self.states_to_idx[s] for s in list(zip(*np.where((self.npg=='S') | (self.npg=='D'))))]
         self.actions = [
             (0, +1),
             (0, -1),
@@ -96,7 +97,6 @@ def env_to_torch(env):
         for s in env.states
     }
 
-eps = torch.finfo().eps
 
 def vi_vec_old(
     env, betas, *, max_iter=50, vi_eps=1e-5, debug=False,
@@ -688,6 +688,39 @@ def option_planner_bfs_vec(
     policy = (meta_beta*Q).softmax(dim=1)
     return J, V, Q, policy, eta
 
+def option_planner_hardmax(
+    # should truly be a cost that we intend to minimize, as it is negated below.
+    env, terminations, search_cost, *,
+    # standard VI arguments
+    max_iter=None,
+    vi_eps=1e-5,
+    terminal_reward=0.,
+):
+    max_iter = max_iter or len(env.states) * 5
+    num_options = terminations.shape[0]
+
+    goals = torch.LongTensor([1 if env.states_features[s] in env.goal_set else 0 for s in env.states]).bool()
+    eta = terminations.softmax(dim=1) # (options, states)
+    ot = []
+    for o in range(eta.shape[0]):
+        s = eta[o].argmax()
+        assert eta[o, s] > 0.999
+        ot.append(s)
+    option_terminations = torch.LongTensor(ot)
+
+    V = torch.zeros(len(env.states))
+    for _ in range(max_iter):
+        prev = V
+        Q = V[None, option_terminations] - search_cost[:, option_terminations]
+        Q[goals, :] = terminal_reward
+        V = Q.max(1).values
+        if torch.norm(V-prev) < vi_eps:
+            break
+    J = -torch.mean(V[torch.tensor(env.start_states)])
+    # HACK
+    policy = (100.*Q).softmax(1)
+    return J, V, Q, policy, eta
+
 def make_transitions_under_policy(env, policy):
     next_states = torch.LongTensor([[env.step(s, a)[0] for a in env.actions] for s in env.states])
     T = torch.zeros((len(env.states), len(env.states)))
@@ -874,15 +907,16 @@ def option_learner_grad(
         #plt.title('Meta-policy')
         #plot_grid(env, (eps+policy[:, 0]).log() - (eps+policy[:, 1]).log(), cmap='RdBu', vcenter=True)
 
-        fmeta, axmeta = plt.subplots(figsize=(10, 5))
-        show_policy_or_eta(env, policy, colorbar=False)
-        axmeta.set(title='Meta-policy')
         if show_all_metapolicies:
-            for goal_env in goal_envs[1:]:
+            for goal_env in goal_envs:
                 p = cost(env=goal_env)[3].detach()
                 f, ax = plt.subplots(figsize=(10, 5))
                 show_policy_or_eta(goal_env, p, colorbar=False)
                 ax.set(title='Meta-policy')
+        else:
+            fmeta, axmeta = plt.subplots(figsize=(10, 5))
+            show_policy_or_eta(env, policy, colorbar=False)
+            axmeta.set(title='Meta-policy')
 
         f, ax = plt.subplots(figsize=(10, 5))
         show_policy_or_eta(env, eta.T, colorbar=False)
@@ -896,6 +930,7 @@ def option_learner_grad(
         terminations=terminations_opt.detach(),
         res=res,
         seed=seed,
+        goal_envs=goal_envs,
     )
 
 def make_option_terminations(env, option_terms):
@@ -908,18 +943,21 @@ def make_option_terminations(env, option_terms):
         terminations[oidx, env.states_to_idx[ot]] = 10.
     return terminations
 
-def env_rect(env):
-    lw = 0.5
+def env_rect(env, facecolor="none", edgecolor="k", linewidth=0.5):
     return [
-        plt.Rectangle((s[1]-0.5, s[0]-0.5), 1, 1, facecolor="none", edgecolor="k", linewidth=lw)
+        plt.Rectangle((s[1]-0.5, s[0]-0.5), 1, 1, linewidth=linewidth, facecolor=facecolor, edgecolor=edgecolor)
         for si, s in enumerate(env.states_features)
     ]
 
 def plot_graph(
     env, *, eta=None, alphas=None, z=None, labels=False, layout='neato',
     size=None,
-    node_arg={}, vmin=None, vmax=None
+    node_arg={}, vmin=None, vmax=None,
+    goal_set=None,
+    constant_node_size=False,
+    rgb=None,
 ):
+    goal_set = env.goal_set if goal_set is None else goal_set
     def alpha_to_hex(alpha):
         return '%02x' % (int(alpha*255))
     if z is not None:
@@ -927,16 +965,24 @@ def plot_graph(
         vmin = vmin or z.min()
         vmax = vmax or z.max()
         z = np.clip(z, vmin, vmax)
-        alphas = (z - vmin) / (vmax - vmin)
+        diff = (vmax - vmin)
+        if diff > eps:
+            alphas = (z - vmin) / diff
+        else:
+            alphas = torch.zeros(z.shape)
     if eta is not None:
         alphas = eta.max(0).values
     g = graphviz.Graph()
     g.attr('graph', layout=layout, size=size and str(size))
     next_states = torch.LongTensor([[env.step(s, a)[0] for a in env.actions] for s in env.states])
     for s in env.states:
-        color = '#008800'
-        if env.states_features[s] in env.goal_set:
+        if env.states_features[s] in goal_set:
             color = '#880000'
+        elif rgb is None:
+            color = '#008800'
+        else:
+            color = f'#{alpha_to_hex(rgb[0])}{alpha_to_hex(rgb[1])}{alpha_to_hex(rgb[2])}'
+        
         alpha = 1.0
         if alphas is not None:
             alpha = alphas[s]
@@ -947,16 +993,23 @@ def plot_graph(
             label = labels[s]
         elif labels is False:
             label = ''
-        default_args = dict(color='black', fillcolor=f'{color}{alpha_to_hex(alpha)}', style='filled',
-               fontsize=str(8), width=str(0.25), height=str(0.1))
+        default_args = dict(
+            color='black', fillcolor=f'{color}{alpha_to_hex(alpha)}', style='filled',
+            fontsize=str(8), width=str(0.25), height=str(0.1),
+            #penwidth=str(7),
+        )
         if labels is False:
             default_args['shape'] = 'circle'
-            default_args['width'] = default_args['height'] = str(0.1 + alpha * 0.2)
+            if constant_node_size:
+                size = 0.5
+            else:
+                size = 0.2 + alpha * 0.3
+            default_args['width'] = default_args['height'] = str(size)
         else:
             default_args['shape'] = 'rect'
         if hasattr(env, 'pos'):
             x, y = env.pos[s]
-            default_args['pos'] = f'{y},{x}!'
+            default_args['pos'] = f'{x},{y}!'
         g.node(str(s), label=label, **dict(default_args, **node_arg))
         '''
         shape = 'point' if labels is False else 'rect'
@@ -967,7 +1020,7 @@ def plot_graph(
         for ns in next_states[s]:
             if s >= ns:
                 continue
-            g.edge(str(s), str(ns.numpy()))
+            g.edge(str(s), str(ns.numpy()), penwidth=str(7))
     return g
 
 
@@ -977,6 +1030,10 @@ def show_policy_or_eta(
     *,
     #threshold=1e-7,
     colorbar=True,
+    show_start_goal=True,
+    render_grid=True,
+    facecolor='white',
+    env_rect_kw=dict(),
     cmaps = [
         new_opacity_cmap(c)
         for c in [
@@ -1003,24 +1060,33 @@ def show_policy_or_eta(
 
     assert len(cmaps)>=num_options
 
-    plt.gcf().set_facecolor('white')
+    f = plt.gcf()
+    ax = plt.gca()
+
+    f.set_facecolor(facecolor)
+
+    for patch in env_rect(env, facecolor='w', edgecolor='none'):
+        ax.add_patch(patch)
+
     for o in range(num_options):
-        plt.imshow(v[o], cmap=cmaps[o], vmin=0, vmax=1)
+        plt.imshow(v[o], cmap=cmaps[o], vmin=0, vmax=1, zorder=3)
         if colorbar:
             plt.colorbar()
 
-    ax = plt.gca()
-    for patch in env_rect(env):
-        ax.add_patch(patch)
+    if render_grid:
+        for patch in env_rect(env, **env_rect_kw):
+            patch.zorder = 4
+            ax.add_patch(patch)
 
-    for si in env.start_states:
-        s = env.states_features[si]
-        ax.plot(s[1], s[0], marker='o', c='k', fillstyle='none')
-    for s in env.goal_set:
-        ax.scatter(s[1], s[0], marker='*', c='k')
+    if show_start_goal:
+        for si in env.start_states:
+            s = env.states_features[si]
+            ax.plot(s[1], s[0], marker='o', c='k', fillstyle='none')
+        for s in env.goal_set:
+            ax.scatter(s[1], s[0], marker='*', c='k')
 
 
-def option_learner_enum(env, *, search_cost=None, num_options=1, option_sets=None, debug=True, tqdm=lambda x:x, **kwargs):
+def option_learner_enum(env, *, search_cost=None, num_options=1, option_sets=None, debug=True, option_planner_bfs_vec=option_planner_bfs_vec, tqdm=lambda x:x, **kwargs):
     option_sets = option_sets or list(itertools.combinations(range(len(env.states)), num_options))
 
     env = copy.copy(env)
@@ -1031,7 +1097,7 @@ def option_learner_enum(env, *, search_cost=None, num_options=1, option_sets=Non
 
     results = []
 
-    for os in tqdm(option_sets):
+    for os in tqdm(option_sets + [()]):
         vsum = 0
         for g in goal_set:
             env.goal_set = {g}
