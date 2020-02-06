@@ -988,7 +988,8 @@ def plot_graph(
             alpha = alphas[s]
         label = None
         if labels is True: # backward compat
-            label = '|'.join([''.join(c) for c in env.states_features[s]])
+            #label = '|'.join([''.join(c) for c in env.states_features[s]])
+            label = getattr(env, 'state_repr', str)(s)
         elif labels:
             label = labels[s]
         elif labels is False:

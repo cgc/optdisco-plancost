@@ -132,6 +132,8 @@ class Blocks(object):
             if srcidx != destidx
         ]
         self.step_reward = -1
+    def state_repr(self, s):
+        return '|'.join([''.join(c) for c in self.states_features[s]])
     def step(self, si, a):
         '''
         Return: next state, reward, termination probability.
@@ -175,11 +177,25 @@ def blocks_state_match_count(a, b):
             same += 1
     return same
 
+def blocks_state_match_count_canon(a, b):
+    '''
+    >>> blocks_state_match_count_canon((('A', 'B', 'C'),('A')), ((),('A', 'B', 'C')))
+    3
+    '''
+    num_blocks = len(a)
+    return max(
+        blocks_state_match_count(tuple(a[i] for i in order), b)
+        for order in itertools.permutations(range(num_blocks))
+    )
+
 def compute_blocks_distance_heuristic(env, tqdm=lambda x: x):
     # HACK consider height limits?
-    assert not env.canonicalize
+    if env.canonicalize:
+        match_count = blocks_state_match_count_canon
+    else:
+        match_count = blocks_state_match_count
     d = torch.zeros((len(env.states), len(env.states)))
     for s in tqdm(env.states):
         for g in env.states:
-            d[s, g] = env.num_blocks - blocks_state_match_count(env.states_features[s], env.states_features[g])
+            d[s, g] = env.num_blocks - match_count(env.states_features[s], env.states_features[g])
     return d

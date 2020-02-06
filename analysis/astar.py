@@ -23,6 +23,7 @@ def a_star_cost(
     queue='lifo',
     seed=None,
     return_visited=False,
+    return_first=False,
 ):
     r = random.Random(seed)
 
@@ -152,6 +153,8 @@ def a_star_cost(
                     if s not in closedSet
                 }
                 res['visited'] = set(closedSet)
+            if return_first:
+                return res
 
         openSet.remove(current)
         closedSet.add(current)
