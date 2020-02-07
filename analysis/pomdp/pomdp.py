@@ -1,7 +1,10 @@
 import torch
 import numpy as np
+import qpth
 
-def tiger(dtype=torch.float32, p = 0.85):
+deftype = torch.float64
+
+def tiger(dtype=deftype, p = 0.85):
     T = torch.tensor([
         # s = 0, a = 0,1,2
         [
@@ -53,7 +56,7 @@ def optimal_tiger_fsc():
         [0, 4],
         [0, 0],
     ])
-    return a, s
+    return (a, s)
 
 def env_simple(
     *,
@@ -61,6 +64,7 @@ def env_simple(
     coherence=0.9,
     correct=+1,
     incorrect=-1,
+    dtype=deftype,
 ):
     # s, a, s'
     T=torch.tensor([
@@ -74,30 +78,20 @@ def env_simple(
             [switch, 1-switch],
             [switch, 1-switch],
         ],
-    ])
+    ]).type(dtype)
+
     # a, s', o
-    O = torch.tensor([
-        #a=0
-        [
-            #s'=0
-            [coherence, 1-coherence],
-            #s'=1
-            [1-coherence, coherence],
-        ],
-        #a=1
-        [
-            #s'=0
-            [coherence, 1-coherence],
-            #s'=1
-            [1-coherence, coherence],
-        ]
-    ])
+    # Coding this way to ensure gradients are passed.
+    O = torch.zeros((2,2,2)).type(dtype)
+    O[:, 0, 0] = O[:, 1, 1] = coherence
+    O[:, 1, 0] = O[:, 0, 1] = 1-coherence
+
     R = torch.tensor([
         # s = 0
         [correct, incorrect],
         # s = 1
         [incorrect, correct],
-    ]).float()
+    ]).type(dtype)
     return T, O, R
 
 def env_simple_fsc():
@@ -109,16 +103,16 @@ def env_simple_fsc():
         ]),
     )
 
-def random_fsc(num_nodes, T, O, R, dtype=torch.float32, action_condition=False, return_logit=False):
+def random_fsc(num_nodes, T, O, R, dtype=deftype, action_condition=False, return_logit=False, logit_max=1.):
     num_states, num_actions, _ = T.shape
     num_obs = O.shape[2]
 
-    fsc_action_logit = torch.tensor(np.random.uniform(0, 1, size=(num_nodes, num_actions)))
+    fsc_action_logit = torch.tensor(np.random.uniform(0, logit_max, size=(num_nodes, num_actions)))
     if action_condition:
         shape = (num_nodes, num_actions, num_obs, num_nodes)
     else:
         shape = (num_nodes, num_obs, num_nodes)
-    fsc_state_logit = torch.tensor(np.random.uniform(0, 1, size=shape))
+    fsc_state_logit = torch.tensor(np.random.uniform(0, logit_max, size=shape))
 
     if return_logit:
         return fsc_action_logit, fsc_state_logit
@@ -131,11 +125,11 @@ def random_fsc(num_nodes, T, O, R, dtype=torch.float32, action_condition=False, 
 
     return fsc_action, fsc_state
 
-def fsc_to_stochastic(fsc_action, fsc_state, T):
+def fsc_to_stochastic(fsc_action, fsc_state, T, dtype=deftype):
     num_states, num_actions, _ = T.shape
     num_nodes, num_obs = fsc_state.shape
-    a = torch.zeros((num_nodes, num_actions))
-    s = torch.zeros((num_nodes, num_obs, num_nodes))
+    a = torch.zeros((num_nodes, num_actions)).type(dtype)
+    s = torch.zeros((num_nodes, num_obs, num_nodes)).type(dtype)
     for n in range(num_nodes):
         a[n, fsc_action[n]] = 1.
         for o in range(num_obs):
@@ -143,7 +137,46 @@ def fsc_to_stochastic(fsc_action, fsc_state, T):
     return a, s
 
 
-def policy_evaluation_stoch(fsc_action, fsc_state, T, O, R, gamma, *, debug=True, max_iter=5000, vi_eps=1e-3):
+def policy_evaluation_deterministic(fsc_action, fsc_state, T, O, R, *, gamma=0.95, debug=True, max_iter=5000, vi_eps=1e-3):
+    num_nodes, num_states = len(fsc_action), T.shape[0]
+    num_obs = O.shape[2]
+
+    V = torch.zeros((num_nodes, num_states))
+    for idx in range(max_iter):
+        prev = torch.clone(V)
+        for n in range(num_nodes):
+            a = fsc_action[n]
+            state_vals = torch.sum(O[a] * V[fsc_state[n]].T, axis=1)
+            V[n] = R[:, a] + gamma * T[:, a] @ state_vals
+        '''
+        for n in range(num_nodes):
+            for s in range(num_states):
+                a = fsc_action[n]
+                nn = fsc_state[n]
+
+                state_vals = np.sum(O[a] * V[fsc_state[n]].T, axis=1)
+                V[n, s] = R[s, a] + gamma * T[s, a] @ state_vals
+        '''
+        '''
+        for n in range(num_nodes):
+            for s in range(num_states):
+                a = fsc_action[n]
+                V[n, s] = R[s, a] + gamma * sum([
+                    T[s, a, ns] * sum(
+                        O[a, ns, o] * V[fsc_state[n, o], ns]
+                        for o in range(num_obs)
+                    )
+                    for ns in range(num_states)
+                ])
+        '''
+        if torch.norm(prev-V) < vi_eps:
+            if debug:
+                print('Converged', idx)
+            break
+    return V
+
+
+def policy_evaluation_stoch(fsc_action, fsc_state, T, O, R, gamma, *, debug=True, max_iter=5000, vi_eps=1e-5, dtype=deftype):
     num_states, num_actions, _ = T.shape
     num_nodes, num_obs = fsc_state.shape[0], O.shape[2]
 
@@ -151,7 +184,7 @@ def policy_evaluation_stoch(fsc_action, fsc_state, T, O, R, gamma, *, debug=True
     #    fsc_state = fsc_state.sum(axis=1) # marginalizing over actoin, makes it p(n'|,n,o)
     fsc_state = ensure_fsc_nao(fsc_state, num_actions, dtype)
 
-    V = torch.zeros((num_nodes, num_states))
+    V = torch.zeros((num_nodes, num_states)).type(dtype)
     for idx in range(max_iter):
         prev = torch.clone(V)
         #'''
@@ -266,7 +299,7 @@ def ensure_fsc_nao(fsc_state, num_actions, dtype):
     return fsc_state
 
 
-def policy_evaluation_stoch_old(fsc_action, fsc_state, T, O, R, gamma, *, debug=True, max_iter=5000, vi_eps=1e-3):
+def policy_evaluation_stoch_old(fsc_action, fsc_state, T, O, R, gamma, *, debug=True, max_iter=5000, vi_eps=1e-5, dtype=deftype):
     num_states, num_actions, _ = T.shape
     num_nodes, num_obs = fsc_state.shape[0], O.shape[2]
 
@@ -274,7 +307,7 @@ def policy_evaluation_stoch_old(fsc_action, fsc_state, T, O, R, gamma, *, debug=
     #    fsc_state = fsc_state.sum(axis=1) # marginalizing over actoin, makes it p(n'|,n,o)
     fsc_state = ensure_fsc_nao(fsc_state, num_actions, dtype)
 
-    V = torch.zeros((num_nodes, num_states))
+    V = torch.zeros((num_nodes, num_states)).type(dtype)
     for idx in range(max_iter):
         prev = torch.clone(V)
         for n in range(num_nodes):
@@ -293,17 +326,20 @@ def policy_evaluation_stoch_old(fsc_action, fsc_state, T, O, R, gamma, *, debug=
     return V
 
 
-# http://www.ifaamas.org/Proceedings/aamas2015/aamas/p1249.pdf
-# https://arxiv.org/pdf/1301.6720.pdf
-def policy_evaluation_sr(fsc_action, fsc_state, T, O, R, gamma, *, dtype=torch.FloatTensor):
+def check_distributions(fsc_action, fsc_state, T, O, dtype):
     num_states, num_actions, _ = T.shape
     num_nodes, num_obs = fsc_state.shape[0], O.shape[2]
+    assert torch.allclose(fsc_action.sum(-1), torch.ones(num_nodes).type(dtype)), fsc_action.sum(-1)
+    assert torch.allclose(fsc_state.sum(-1), torch.ones((num_nodes, num_actions, num_obs)).type(dtype)), fsc_state.sum(-1)
+    assert torch.allclose(T.sum(-1), torch.ones((num_states, num_actions)).type(dtype)), T.sum(-1)
+    assert torch.allclose(O.sum(-1), torch.ones((num_actions, num_states)).type(dtype)), O.sum(-1)
 
-    fsc_action = fsc_action.type(dtype)
-    fsc_state = fsc_state.type(dtype)
-    T = T.type(dtype)
-    O = O.type(dtype)
-    R = R.type(dtype)
+
+# http://www.ifaamas.org/Proceedings/aamas2015/aamas/p1249.pdf
+# https://arxiv.org/pdf/1301.6720.pdf
+def policy_evaluation_sr(fsc_action, fsc_state, T, O, R, gamma, *, dtype=deftype):
+    num_states, num_actions, _ = T.shape
+    num_nodes, num_obs = fsc_state.shape[0], O.shape[2]
 
     '''
     T # s, a, s' -> p(s'|s,a)
@@ -326,12 +362,8 @@ def policy_evaluation_sr(fsc_action, fsc_state, T, O, R, gamma, *, dtype=torch.F
     #if len(fsc_state.shape) == 4:
     #    fsc_state = fsc_state.sum(axis=1) # marginalizing over actoin, makes it p(n'|,n,o)
     fsc_state = ensure_fsc_nao(fsc_state, num_actions, dtype)
-    assert torch.allclose(fsc_state.sum(-1), torch.ones((num_nodes, num_actions, num_obs)).type(dtype))
 
-    assert torch.allclose(fsc_action.sum(-1), torch.ones(num_nodes).type(dtype))
-    #assert torch.allclose(fsc_state.sum(-1), torch.ones((num_nodes, num_obs)).type(dtype))
-    assert torch.allclose(T.sum(-1), torch.ones((num_states, num_actions)).type(dtype))
-    assert torch.allclose(O.sum(-1), torch.ones((num_actions, num_states)).type(dtype))
+    check_distributions(fsc_action, fsc_state, T, O, dtype)
 
     # we want p(n',s'|n,s)
     Tmu = torch.zeros((num_nodes, num_states, num_nodes, num_states)).type(dtype)
@@ -356,7 +388,11 @@ def policy_evaluation_sr(fsc_action, fsc_state, T, O, R, gamma, *, dtype=torch.F
     V = sr @ Cmu.view(crossprod)
     return V.view((num_nodes, num_states))
 
-def make_constraints_simple(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=torch.float32):
+def make_constraints_simple(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=deftype):
+    '''
+    These constraints compute c_a based on c_a_n_z, reducing the number of constraints by a fair amount.
+    Should be preferred over `make_constraints(...)`, though both seem to produce the same results.
+    '''
     # http://www.ifaamas.org/Proceedings/aamas2015/aamas/p1249.pdf
     # https://arxiv.org/pdf/1301.6720.pdf
     # http://papers.nips.cc/paper/2372-bounded-finite-state-controllers.pdf
@@ -364,11 +400,6 @@ def make_constraints_simple(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=torch.
     num_states, num_actions, _ = T.shape
     num_nodes = V.shape[0]
     num_obs = O.shape[2]
-
-    V = V.type(dtype)
-    T = T.type(dtype)
-    O = O.type(dtype)
-    R = R.type(dtype)
 
     canz_shape = torch.Size((num_actions, num_obs, num_nodes))
 
@@ -404,28 +435,24 @@ def make_constraints_simple(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=torch.
     # The default optimization is an argmin, so this lets us maximize the delta!
     p[delta_slice] = -1
 
-    # HACK HACK in the future, write these so we don't need c_a?? to be simpler??
     A = torch.zeros((1, args)).type(dtype)
     b = torch.zeros(1).type(dtype)
-
     # \sum_a c_a_n_z = 1
     A[0, canz_slice] = 1
     b[0] = 1
 
     def unpack(soln):
+        delta = soln[delta_slice].item()
         canz = soln[canz_slice].view(canz_shape)
+        # Computing c_a using c_a_n_z
         c_a = canz.sum(axis=(1, 2))
         assert c_a.shape == (num_actions,)
-        return (
-            soln[delta_slice].item(),
-            c_a,
-            canz,
-        )
+        return delta, c_a, canz
 
     return (Q, p, G, h, A, b), unpack
 
 
-def make_constraints(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=torch.float32):
+def make_constraints(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=deftype):
     # http://www.ifaamas.org/Proceedings/aamas2015/aamas/p1249.pdf
     # https://arxiv.org/pdf/1301.6720.pdf
     # http://papers.nips.cc/paper/2372-bounded-finite-state-controllers.pdf
@@ -433,11 +460,6 @@ def make_constraints(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=torch.float32
     num_states, num_actions, _ = T.shape
     num_nodes = V.shape[0]
     num_obs = O.shape[2]
-
-    V = V.type(dtype)
-    T = T.type(dtype)
-    O = O.type(dtype)
-    R = R.type(dtype)
 
     canz_shape = torch.Size((num_actions, num_obs, num_nodes))
 
@@ -498,7 +520,7 @@ def make_constraints(node, V, T, O, R, gamma, *, qcoef=1e-4, dtype=torch.float32
     return (Q, p, G, h, A, b), unpack
 
 
-def policy_iteration_grad(env, gamma, *, lr=0.1, grad_steps=100, progress=10, dtype=torch.float64, num_nodes=2):
+def policy_iteration_grad(env, gamma, *, lr=0.1, steps=100, progress=10, dtype=deftype, num_nodes=2):
     T, O, R = env
 
     fsc_action_logit, fsc_state_logit = random_fsc(num_nodes, T, O, R, dtype=dtype, return_logit=True)
@@ -513,20 +535,98 @@ def policy_iteration_grad(env, gamma, *, lr=0.1, grad_steps=100, progress=10, dt
         T, O, R, gamma, dtype=dtype
     )[0].mean()
 
-    for idx in range(grad_steps):
+    for idx in range(steps):
         opt.zero_grad()
 
         loss = -value()
         loss.backward(retain_graph=True)
 
-        if ((idx+1) % progress) == 0:
+        if progress and ((idx+1) % progress) == 0:
             print(idx, loss.item())
 
         opt.step()
 
     return dict(
+        value=value(),
         fsc_action_logit=fsc_action_logit,
         fsc_state_logit=fsc_state_logit,
         fsc_action=fsc_action_logit.softmax(-1),
         fsc_state=fsc_state_logit.softmax(-1),
     )
+
+def policy_iteration_bpi(
+    env, gamma, *,
+    steps=10, progress=1, dtype=deftype, num_nodes=2,
+    rollback_bad_change=True,
+    debug=True, # standard level of detail
+    verbose=False, # even more detail
+    # Our objective is to maximize the negative mean value
+    objective=lambda V: V.mean(),
+    seed=None,
+):
+    T, O, R = env
+    num_states, num_actions, _ = T.shape
+    num_obs = O.shape[2]
+
+    seed = seed or np.random.randint(2**30)
+    if debug: print('Seed', seed)
+    np.random.seed(seed)
+    fsc_action, fsc_state = random_fsc(num_nodes, T, O, R, dtype=dtype, action_condition=True)
+
+    value = lambda: policy_evaluation_sr(fsc_action, fsc_state, T, O, R, gamma, dtype=dtype)
+
+    V = value()
+    for idx in range(steps):
+        prev = V.clone()
+        for n in range(num_nodes):
+            V = value()
+            constraints, unpack = make_constraints_simple(n, V, T, O, R, gamma, dtype=dtype, qcoef=1e-10)
+            solution = qpth.qp.QPFunction(verbose=verbose)(*constraints).float()
+            delta, c_a, canz = unpack(solution[0])
+
+            prev_fsc = (fsc_action, fsc_state)
+            # Have to clone so we can take a gradient through the below modifications.
+            fsc_action, fsc_state = fsc_action.clone(), fsc_state.clone()
+            fsc_action[n] = c_a
+            # Normalizing by transition distribution to get the conditional distribution p(n'|n,a,o)
+            fsc_state[n] = canz/canz.sum(-1)[:, :, None]
+            Vafter = value()
+            if verbose:
+                print('iter', idx, 'node', n, 'before', V, 'Vafter', Vafter)
+            # HACK wonder if we can take a gradient through this??
+            if rollback_bad_change and objective(V) > objective(Vafter):
+                fsc_action, fsc_state = prev_fsc
+
+        V = value()
+
+        if progress and ((idx+1) % progress) == 0:
+            if debug: print(idx, round(objective(V).item(), 3))
+
+        if (prev-V).norm() < 1e-3:
+            if debug: print('converged', idx)
+
+    return dict(
+        fsc_action=fsc_action,
+        fsc_state=fsc_state,
+        V=V,
+        value=objective(V),
+        seed=seed,
+    )
+
+def log_fsc(fsc_action, fsc_state):
+    print('action, obs, node')
+    prev = -1
+    for idx in zip(*[x.detach().numpy() for x in torch.where(fsc_state>.01)]):
+        if prev != idx[0]:
+            print('node', idx[0], 'action', ', '.join([
+                f'p(a={i}) {round(p, 3)}'
+                for i, p in enumerate(fsc_action[idx[0]].detach().numpy())
+                if p > 1e-2]))
+        if len(idx) == 3:
+            o, n = idx[1:]
+            msg = f'p(n={n}|o={o})'
+        else:
+            a, o, n = idx[1:]
+            msg = f'p(n={n}|a={a},o={o})'
+        print(msg, round(fsc_state[idx].item(), 3))
+        prev = idx[0]
