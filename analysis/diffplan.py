@@ -580,7 +580,7 @@ def compute_bfs_matrix(env, distance):
         BFS[:, s_term] = expected_bfs_cost(env, distance, s_term)
     return BFS
 
-def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False):
+def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False, return_path=False):
     '''
     append_queue_entries: When true, nodes are appended to the queue, even if
     they're in the queue already. This might use more memory, but can ensure
@@ -590,6 +590,7 @@ def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False):
     visited = set()
     queue = [start_state]
     distance = {start_state: 0}
+    come_from = {}
 
     while queue:
         n = queue.pop()
@@ -597,7 +598,18 @@ def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False):
             continue
         visited.add(n)
         if n == goal:
-            return distance[n], len(visited)
+            r = dict(
+                distance=distance[n],
+                plan_cost=len(visited),
+            )
+            if return_path:
+                node = n
+                path = [node]
+                while node != start_state:
+                    node = come_from[node]
+                    path.append(node)
+                r['path'] = path[::-1]
+            return r
         if shuffle:
             random.shuffle(actions)
         for aidx in actions:
@@ -605,6 +617,8 @@ def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False):
             if (append_queue_entries or nn not in queue) and nn not in visited:
                 queue.append(nn)
                 distance[nn] = distance[n] + 1
+                if return_path:
+                    come_from[nn] = n
 
 def compute_dfs_matrix(env, *, samples=100, tqdm=lambda x: x):
     distance = torch.zeros((len(env.states), len(env.states)))
@@ -614,8 +628,8 @@ def compute_dfs_matrix(env, *, samples=100, tqdm=lambda x: x):
             dist, plan_cost = 0., 0.
             for _ in range(samples):
                 r = dfs(env, s, g, shuffle=True)
-                dist += r[0]
-                plan_cost += r[1]
+                dist += r['distance']
+                plan_cost += r['plan_cost']
             dist, plan_cost = dist/samples, plan_cost/samples
             distance[s, g] = dist
             DFS[s, g] = plan_cost
@@ -956,6 +970,7 @@ def plot_graph(
     goal_set=None,
     constant_node_size=False,
     rgb=None,
+    directed=False,
 ):
     goal_set = env.goal_set if goal_set is None else goal_set
     def alpha_to_hex(alpha):
@@ -972,7 +987,7 @@ def plot_graph(
             alphas = torch.zeros(z.shape)
     if eta is not None:
         alphas = eta.max(0).values
-    g = graphviz.Graph()
+    g = (graphviz.Digraph if directed else graphviz.Graph)()
     g.attr('graph', layout=layout, size=size and str(size))
     next_states = torch.LongTensor([[env.step(s, a)[0] for a in env.actions] for s in env.states])
     for s in env.states:
@@ -1018,10 +1033,16 @@ def plot_graph(
                fontsize=str(8), width=str(0.25), height=str(0.1), shape=shape)
                #fontsize=str(8), width=str(0.25), height=str(0.1), shape='circle')
         '''
+        kw = dict(penwidth=str(7))
         for ns in next_states[s]:
-            if s >= ns:
-                continue
-            g.edge(str(s), str(ns.numpy()), penwidth=str(7))
+            if directed:
+                if s == ns:
+                    continue
+                g.edge(str(s), str(ns.numpy()))
+            else:
+                if s >= ns:
+                    continue
+                g.edge(str(s), str(ns.numpy()), **kw)
     return g
 
 

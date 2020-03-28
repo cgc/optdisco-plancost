@@ -3,7 +3,7 @@ import itertools
 import torch
 
 class Graph(object):
-    def __init__(self, graph):
+    def __init__(self, graph, *, step_reward=-1):
         all_nodes = set()
         for node, edges in graph:
             all_nodes.add(node)
@@ -32,9 +32,10 @@ class Graph(object):
         self.states_to_idx = nodes # HACK
         self.start_states = []
         self.goal_set = {}
+        self.step_reward = step_reward
 
     def step(self, s, a):
-        return self.T[s, a], None, None
+        return self.T[s, a], self.step_reward, None
 
 def canon_state(s):
     return tuple(sorted(s, key=lambda s: (len(s), s[:1]), reverse=True))

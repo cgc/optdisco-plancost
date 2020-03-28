@@ -366,11 +366,18 @@ def compute_astar_matrix(env, heuristic_cost_estimate, *, samples=100, tqdm=lamb
             ]
             cost[s, g] = 1.*sum(d['nodes_visited'] for d in ds)/samples
             distance[s, g] = ds[0]['final_score']
-    return distance, cost
+    return 
 
 
-if __name__ == '__main__':
-    import doctest
-    fail_count, test_count = doctest.testmod()
-    if not fail_count:
-        print('\n\t** All {} tests passed! **\n'.format(test_count))
+def make_env_position_heuristic(env, goal):
+    '''
+    Using the coordinates for defining the visual rendering of a graph,
+    we define a heuristic using manhattan distance.
+    '''
+    p = env.pos
+    def h(state):
+        return (
+            abs(p[state][0] - p[goal][0]) +
+            abs(p[state][1] - p[goal][1])
+        )
+    return h
