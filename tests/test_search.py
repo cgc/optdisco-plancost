@@ -68,3 +68,31 @@ def test_deterministic_search_f2d():
     res = search.deterministic_search(env, start, goal, algorithm='dfs')
     print(res)
     assert len(res['path']) == 6
+
+def test_determinstic_search_matches_dfs():
+    env = prior_envs.f2c
+    for seed in range(1000, 1030):
+        for start in env.states:
+            for goal in env.states:
+                random.seed(seed)
+                res = search.dfs(env, start, goal, return_path=True)
+                random.seed(seed)
+                ds_res = search.deterministic_search(env, start, goal, algorithm='dfs')
+                assert res['visited'] == ds_res['visited']
+                assert res['path'] == ds_res['path']
+
+def test_determinstic_search_same_ucs_bfs():
+    env = prior_envs.f2c
+    for seed in range(1000, 1020):
+        for start in env.states:
+            for goal in env.states:
+                random.seed(seed)
+                simple_bfs_res = search.bfs(env, start, goal)
+                random.seed(seed)
+                bfs_res = search.deterministic_search(env, start, goal, algorithm='bfs')
+                random.seed(seed)
+                # HACK need FIFO here to make them match... wonder if that could be solved
+                # by reversing action list for LIFO?
+                ucs_res = search.deterministic_search(env, start, goal, algorithm='ucs', queue_order='fifo')
+                assert simple_bfs_res['visited'] == bfs_res['visited'] == ucs_res['visited']
+                assert simple_bfs_res['path'] == bfs_res['path'] == ucs_res['path']

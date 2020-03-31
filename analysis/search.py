@@ -20,13 +20,12 @@ def bfs(env, start, goal_test, *, shuffle_actions=True, visited_init=frozenset()
     while queue:
         current = queue.popleft()
         if goal_test(current):
+            p = reconstruct_path(start, current, camefrom)
             return dict(
                 visited=frozenset(visited),
                 frontier=frozenset(queue),
-                path=(
-                    None,
-                    reconstruct_path(start, current, camefrom)
-                ),
+                path=p,
+                cost=len(p)-1,
             )
         visited.add(current)
         if shuffle_actions:
@@ -38,6 +37,43 @@ def bfs(env, start, goal_test, *, shuffle_actions=True, visited_init=frozenset()
                 camefrom[ns] = current
                 queue.append(ns)
 
+def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False, return_path=False, visited_init=frozenset()):
+    '''
+    append_queue_entries: When true, nodes are appended to the queue, even if
+    they're in the queue already. This might use more memory, but can ensure
+    a promising node encountered early (but not first) isn't ignored.
+    '''
+    actions = list(range(len(env.actions)))
+    visited = set(visited_init)
+    queue = [start_state]
+    distance = {start_state: 0}
+    come_from = {}
+
+    while queue:
+        n = queue.pop()
+        if n in visited:
+            continue
+        if n == goal:
+            r = dict(
+                distance=distance[n],
+                plan_cost=len(visited),
+            )
+            if return_path:
+                r['path'] = reconstruct_path(start_state, n, come_from)
+                # HACK
+                r['visited'] = visited
+            return r
+        visited.add(n)
+        if shuffle:
+            random.shuffle(actions)
+        for aidx in actions:
+            nn, _, _ = env.step(n, env.actions[aidx])
+            if (append_queue_entries or nn not in queue) and nn not in visited:
+                queue.append(nn)
+                distance[nn] = distance[n] + 1
+                if return_path:
+                    come_from[nn] = n
+
 def deterministic_search(
     env, start, goal_test, *,
     shuffle_actions=True,
@@ -45,6 +81,7 @@ def deterministic_search(
     queue_order=None,
     heuristic=None,
     algorithm=None,
+    debug=False,
 ):
     cost_prioritization = True
     assert algorithm in (None, 'a*', 'dfs', 'bfs', 'ucs')
@@ -93,9 +130,14 @@ def deterministic_search(
 
     while queue:
         f, _, g, current = heapq.heappop(queue)
+        if debug:
+            print('Current node', current, 'f', f, 'g', g)
         if current in visited: # Need to do this since we might queue state twice for A* or DFS
             continue
         if goal_test(current):
+            if debug:
+                for el in queue:
+                    print(queue)
             return dict(
                 cost=g,
                 visited=frozenset(visited),
@@ -112,6 +154,8 @@ def deterministic_search(
             g_ns = g - rew
             f_ns = f_fn(ns, g_ns)
 
+            if debug:
+                print('\tSuccessors', ns, 'f', f_ns, 'g', g_ns, 'will add', ns not in visited and not_in_queue(ns, f_ns))
             if ns not in visited and not_in_queue(ns, f_ns):
                 camefrom[ns] = current
                 heapq.heappush(queue, (f_ns, queue_ct, g_ns, ns))

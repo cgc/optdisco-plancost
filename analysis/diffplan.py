@@ -6,6 +6,7 @@ import random
 import graphviz
 import heapq
 import itertools
+import search
 eps = torch.finfo().eps
 
 class Line(object):
@@ -580,60 +581,26 @@ def compute_bfs_matrix(env, distance):
         BFS[:, s_term] = expected_bfs_cost(env, distance, s_term)
     return BFS
 
-def dfs(env, start_state, goal, *, shuffle=True, append_queue_entries=False, return_path=False):
-    '''
-    append_queue_entries: When true, nodes are appended to the queue, even if
-    they're in the queue already. This might use more memory, but can ensure
-    a promising node encountered early (but not first) isn't ignored.
-    '''
-    actions = np.arange(len(env.actions))
-    visited = set()
-    queue = [start_state]
-    distance = {start_state: 0}
-    come_from = {}
-
-    while queue:
-        n = queue.pop()
-        if n in visited:
-            continue
-        visited.add(n)
-        if n == goal:
-            r = dict(
-                distance=distance[n],
-                plan_cost=len(visited),
-            )
-            if return_path:
-                node = n
-                path = [node]
-                while node != start_state:
-                    node = come_from[node]
-                    path.append(node)
-                r['path'] = path[::-1]
-            return r
-        if shuffle:
-            random.shuffle(actions)
-        for aidx in actions:
-            nn, _, _ = env.step(n, env.actions[aidx])
-            if (append_queue_entries or nn not in queue) and nn not in visited:
-                queue.append(nn)
-                distance[nn] = distance[n] + 1
-                if return_path:
-                    come_from[nn] = n
-
-def compute_dfs_matrix(env, *, samples=100, tqdm=lambda x: x):
+def compute_search_matrix(env, *, samples=100, tqdm=lambda x: x, search_fn=None):
     distance = torch.zeros((len(env.states), len(env.states)))
-    DFS = torch.zeros((len(env.states), len(env.states)))
+    plan_costs = torch.zeros((len(env.states), len(env.states)))
     for s in tqdm(env.states):
         for g in env.states:
             dist, plan_cost = 0., 0.
             for _ in range(samples):
-                r = dfs(env, s, g, shuffle=True)
-                dist += r['distance']
-                plan_cost += r['plan_cost']
+                r = search_fn(env, s, g)
+                dist += r[0]
+                plan_cost += r[1]
             dist, plan_cost = dist/samples, plan_cost/samples
             distance[s, g] = dist
-            DFS[s, g] = plan_cost
-    return distance, DFS
+            plan_costs[s, g] = plan_cost
+    return distance, plan_costs
+
+def compute_dfs_matrix(*args, **kwargs):
+    def s(env, s, g):
+        r = dfs(env, s, g, shuffle=True)
+        return r['distance'], r['plan_cost']
+    return compute_search_matrix(*args, search_fn=s, **kwargs)
 
 def option_planner_bfs(
     # should truly be a cost that we intend to minimize, as it is negated below.
