@@ -156,7 +156,10 @@ def vi_vec_old(
     return J
 
 def vi_vec(
-    env, betas, *, max_iter=50, vi_eps=1e-5, debug=False,
+    env, betas, *,
+    max_iter=None,
+    vi_eps=1e-5,
+    debug=False,
     max_ent=False,
     fixed_policy=None,
     fixed_cost=None,
@@ -164,8 +167,7 @@ def vi_vec(
 ):
     if betas.shape == torch.Size([1]):
         betas = betas.repeat(len(env.states))
-    if max_iter < len(env.states):
-        print('WARNING: max iter smaller than # states')
+    max_iter = max_iter or 10*len(env.states)
     next_states, rewards, terminations = (
         torch.LongTensor([[env.step(s, a)[0] for a in env.actions] for s in env.states]),
         torch.Tensor([[env.step(s, a)[1] for a in env.actions] for s in env.states]),
@@ -715,6 +717,16 @@ def make_sr(env, T, terminations):
     sr = torch.inverse(torch.eye(len(env.states)) - T * (1-terminations[None, :]))
     return sr
 
+def graph_laplacian(env):
+    W = torch.zeros((len(env.states)), len(env.states))
+    for s in env.states:
+        for a in env.actions:
+            ns, r, _ = env.step(s, a)
+            if s != ns:
+                W[s, ns] = 1
+    D = torch.diag(W.sum(0))
+    return D - W
+
 class SubgoalGrid2(Grid):
     '''
     In a Subgoal Grid, we keep transition dynamics, but replace terminations & make all actions have same cost.
@@ -1086,7 +1098,7 @@ def option_learner_enum(env, *, search_cost=None, num_options=1, option_sets=Non
 
     results = []
 
-    for os in tqdm(option_sets + [()]):
+    for os in tqdm([()] + option_sets):
         vsum = 0
         for g in goal_set:
             env.goal_set = {g}

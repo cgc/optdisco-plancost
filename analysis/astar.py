@@ -366,7 +366,7 @@ def compute_astar_matrix(env, heuristic_cost_estimate, *, samples=100, tqdm=lamb
             ]
             cost[s, g] = 1.*sum(d['nodes_visited'] for d in ds)/samples
             distance[s, g] = ds[0]['final_score']
-    return 
+    return distance, cost
 
 
 def make_env_position_heuristic(env, goal):

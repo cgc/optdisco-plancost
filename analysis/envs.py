@@ -200,3 +200,9 @@ def compute_blocks_distance_heuristic(env, tqdm=lambda x: x):
         for g in env.states:
             d[s, g] = env.num_blocks - match_count(env.states_features[s], env.states_features[g])
     return d
+
+def make_blocks_distance_heuristic(env, goal):
+    d = compute_blocks_distance_heuristic(env)
+    def h(state):
+        return d[state, goal]
+    return h
