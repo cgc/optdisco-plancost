@@ -7,6 +7,7 @@ import graphviz
 import heapq
 import itertools
 import search
+import envs
 eps = torch.finfo().eps
 
 class Line(object):
@@ -949,8 +950,10 @@ def plot_graph(
     goal_set=None,
     constant_node_size=False,
     rgb=None,
-    directed=False,
+    directed=None,
 ):
+    if directed is None:
+        directed = isinstance(env, envs.DirectedGraph)
     goal_set = env.goal_set if goal_set is None else goal_set
     def alpha_to_hex(alpha):
         return '%02x' % (int(alpha*255))

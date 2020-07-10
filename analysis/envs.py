@@ -2,6 +2,25 @@ import numpy as np
 import itertools
 import torch
 
+class DirectedGraph(object):
+    def __init__(self, graph, *, step_reward=-1):
+        self.graph = {
+            s: next_
+            for s, next_ in graph
+        }
+        self.states = range(len(self.graph))
+        assert set(self.graph.keys()) == set(self.states), 'Missing node #s'
+        self.actions = range(max([len(next_) for s, next_ in self.graph.items()]))
+        self.states_features = self.states # HACK
+        self.states_to_idx = self.states # HACK
+        self.start_states = []
+        self.goal_set = {}
+        self.step_reward = step_reward
+
+    def step(self, s, a):
+        s_ = self.graph[s][a] if a < len(self.graph[s]) else s
+        return s_, self.step_reward, None
+
 class Graph(object):
     def __init__(self, graph, *, step_reward=-1):
         all_nodes = set()
@@ -19,7 +38,7 @@ class Graph(object):
                 T[e, node] = 1
         # HACK
         num_actions = T.sum(1).max()
-        self.T = np.zeros((node_count, num_actions), dtype=np.int)
+        self.T = np.zeros((node_count, num_actions), dtype=np.int) - 1
         for n in nodes:
             # by default self-loop
             self.T[n] = n
