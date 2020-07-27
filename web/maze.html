@@ -6,9 +6,15 @@
 	<!--<body onload="runMaze();" onkeydown="doKeyDown(event);" onkeyup="doKeyUp(event);">-->
 	<body>
 		<canvas id="mazeCanvas" width="600" height="450"></canvas>
-        <h4>up: move forward. left/right: turn.</h4>
-        <h4>OR: click to use your mouse to look, hit up, space, or w to move forward.</h4>
-        <h4>explore the maze and look for the goal (swirling blue cube)</h4>
+        <p>
+        Demo of HTML-based 3D maze. Doesn't work on phone. There are two control schemes (that don't play well together... choose one, to try the other refresh the page):
+        <ol>
+            <li>Up moves foward. Left/Right turn.</li>
+            <li>Click on the maze view with mouse to be able to move viewport, FPS-style controls. Press spacebar to move forward, based on which direction you most face. Press Escape to stop.</li>
+        </ol>
+        To complete the task, explore the maze to look for a swirling blue cube.
+        </p>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/110/three.min.js"></script>
 <script src="./maze_files/PointerLockControls.js"></script>
 <script>
@@ -53,7 +59,7 @@ var _maze = `
 			const EAST = 101;
 			const WEST = 102;
 			const SOUTH = 103;
-const moveTime = 800;
+const moveTime = 400;
 
             let parsedMaze = maze.split('\n').filter(x => x.length).map(line => line.split(''));
 
@@ -62,7 +68,15 @@ b.onkeydown = doKeyDown;
 b.onkeyup = doKeyUp;
 runMaze();
 
-			
+let keynumToProp = {
+    32: 'up', // space
+    // arrows
+    37: 'left',
+    38: 'up',
+    39: 'right',
+    40: 'down',
+};
+
 			//Track if a direction key has bene pressed
 			function doKeyDown(event){
 				var keynum;
@@ -74,21 +88,15 @@ runMaze();
 					keynum = event.which;
 				}
                 setKey(keynum, 1);
+                if (keynumToProp[keynum]) {
+                    event.preventDefault();
+                }
             }
-				
+
             function setKey(keynum, value) {
-				if(keynum == 37){
-					playerInput.left = value;
-				}
-				else if(keynum == 38 || keynum == 32 || keynum == 119){
-					playerInput.up = value;
-				}
-				else if(keynum == 39){
-					playerInput.right = value;
-				}
-				else if(keynum == 40){
-					playerInput.down = value;
-				}
+                if (keynumToProp[keynum]) {
+					playerInput[keynumToProp[keynum]] = value;
+                }
 			}
 
 			//Track if a direction key has been released
@@ -102,6 +110,9 @@ runMaze();
 					keynum = event.which;
 				}
 				
+                if (keynumToProp[keynum]) {
+                    event.preventDefault();
+                }
                 setKey(keynum, 0);
 			}
 
@@ -196,9 +207,12 @@ runMaze();
 			
 			//Add 3D walls to a scene based off a maze object
 			function placeWallGraphics(scene, mazeGrid){
-				var wallGeometry = new THREE.PlaneGeometry( 1, 0.5 );
-				var wallMaterial = new THREE.MeshStandardMaterial( );
-				
+				var wallGeometry = new THREE.PlaneGeometry( 1, 1 );
+                var wallMaterial = new THREE.MeshStandardMaterial({
+                    roughness: 0.9,
+                    metalness: 0,
+                    color: 0xdddddd,
+                });
 				
 				mazeGrid.forEach(function(mazeRow, rowCount){
 					mazeRow.forEach(function(mazeCell, colCount){
@@ -379,9 +393,12 @@ runMaze();
 				var camera = new THREE.PerspectiveCamera( 75, mazeCanvas.width/mazeCanvas.height, 0.1, 1000 );
                 var controls = new PointerLockControls( camera, document.body, 0.005 );
                 window.controls = controls;
-				b.addEventListener( 'click', function () {
+				mazeCanvas.addEventListener( 'click', function () {
 					controls.lock();
 				}, false );
+                controls.addEventListener('unlock', function() {
+                    setDirectionFromControls();
+                });
 				scene.add( controls.getObject() );
 				
 				//Build a random maze and add it to the 3D scene
@@ -396,7 +413,7 @@ runMaze();
                 window.collectables = collectables;
 
 				//Create a light to follow the players camera around
-				var playerPointLight = new THREE.PointLight();
+				var playerPointLight = new THREE.PointLight('#ffffff', 1.2, 10);
 				playerPointLight.position.set( 0, 0, 0 );
 				scene.add( playerPointLight );
 				
@@ -431,8 +448,24 @@ runMaze();
 						playerPointLight.position.y = camera.position.y;
 						playerPointLight.position.z = camera.position.z;
 				player.direction = NORTH;
-				
-				
+
+                function setDirectionFromControls() {
+                    let o = controls.getObject();
+                    let y = camera.quaternion.y;
+                    var d;
+                    if (-0.25 < y && y < 0.25) {
+                        d = NORTH;
+                    } else if (-0.75 < y && y < -0.25) {
+                        d = EAST;
+                    } else if (0.75 < y || y < -0.75) {
+                        d = SOUTH;
+                    } else if (0.25 < y && y < 0.75) {
+                        d = WEST;
+                    }
+                    player.direction = direction = d;
+                    //console.log(controls.isLocked === true, o.position, o.rotation, o.rotation.y, camera.rotation);
+                }
+
 				//Our main game loop.
 				//The browser wil try to call this 60 times a second but might fall behind so always check how much time has passed
 				var render = function () {
@@ -487,20 +520,7 @@ runMaze();
 						//Player wants to try and move forward
 						else if(playerInput.up) {
                             if (controls.isLocked === true) {
-                                let o = controls.getObject();
-                                let y = camera.quaternion.y;
-                                var d;
-                                if (-0.25 < y && y < 0.25) {
-                                    d = NORTH;
-                                } else if (-0.75 < y && y < -0.25) {
-                                    d = EAST;
-                                } else if (0.75 < y || y < -0.75) {
-                                    d = SOUTH;
-                                } else if (0.25 < y && y < 0.75) {
-                                    d = WEST;
-                                }
-                                player.direction = direction = d;
-                            //console.log(controls.isLocked === true, o.position, o.rotation, o.rotation.y, camera.rotation);
+                                setDirectionFromControls();
                             }
                             if (validMove(mazeGrid, player.gridX, player.gridY, player.direction)){
 							walkingDistance = 0;
